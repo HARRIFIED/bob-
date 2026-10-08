@@ -1,0 +1,16 @@
+import type { ComponentDefinition, ComponentKind } from '../simulation/types';
+
+export const definitions: Record<ComponentKind, ComponentDefinition> = {
+  users: { id: 'users', name: 'Customers', category: 'TRAFFIC', capacity: 12000, baseLatency: 0, vcpu: 0, memory: 0, monthlyCost: 0, description: 'Payday customers checking balances. 90% reads, 10% writes.', available: false },
+  'load-balancer': { id: 'load-balancer', name: 'Load Balancer', category: 'TRAFFIC', capacity: 50000, baseLatency: 5, vcpu: 2, memory: 2, monthlyCost: 80, description: 'Routes requests across connected API capacity. One is provisioned for this mission.', available: false },
+  'api-small': { id: 'api-small', name: 'API Server Small', category: 'COMPUTE', capacity: 1500, baseLatency: 28, vcpu: 2, memory: 4, monthlyCost: 80, description: 'A small application worker. Scales compute, but cannot fix a saturated database.', available: true },
+  'api-medium': { id: 'api-medium', name: 'API Server Medium', category: 'COMPUTE', capacity: 2500, baseLatency: 28, vcpu: 4, memory: 8, monthlyCost: 120, description: 'More application capacity. Cache hits also reduce time spent on expensive database work.', available: true },
+  postgres: { id: 'postgres', name: 'PostgreSQL', category: 'DATA', capacity: 6000, readCapacity: 6000, writeCapacity: 3000, connectionLimit: 100, baseLatency: 72, vcpu: 8, memory: 32, monthlyCost: 600, description: 'The authoritative balance store. Writes cost twice as much as reads in this model. Provisioned for this mission.', available: false },
+  redis: { id: 'redis', name: 'Redis Cache', category: 'DATA', capacity: 30000, baseLatency: 5, vcpu: 2, memory: 4, monthlyCost: 180, cacheHitRate: 0.82, description: 'Serves 82% of repeated balance reads. Writes reach PostgreSQL and invalidate cached balances in this scenario.', available: true },
+  'read-replica': { id: 'read-replica', name: 'Read Replica', category: 'DATA', capacity: 5000, baseLatency: 25, vcpu: 4, memory: 16, monthlyCost: 320, description: 'Read scaling and replication lag. Available in a future mission.', available: false },
+  queue: { id: 'queue', name: 'RabbitMQ Queue', category: 'MESSAGING', capacity: 20000, baseLatency: 8, vcpu: 1, memory: 2, monthlyCost: 80, description: 'A RabbitMQ work queue buffers asynchronous tasks for consumers. Available in Missing Event.', available: false },
+  kafka: { id: 'kafka', name: 'Apache Kafka', category: 'MESSAGING', capacity: 20000, baseLatency: 8, vcpu: 2, memory: 4, monthlyCost: 160, description: 'A durable event stream that consumers can replay. Available in a future mission; not simulated in Payday Surge.', available: false },
+  idempotency: { id: 'idempotency', name: 'Idempotency', category: 'RELIABILITY', capacity: 20000, baseLatency: 3, vcpu: 0, memory: 0, monthlyCost: 0, description: 'Make retries safe. Available in Double Debit.', available: false },
+  outbox: { id: 'outbox', name: 'Transactional Outbox', category: 'RELIABILITY', capacity: 10000, baseLatency: 5, vcpu: 0, memory: 0, monthlyCost: 0, description: 'Keep transactions and events consistent. Available in Missing Event.', available: false },
+};
+export const isApi = (kind: ComponentKind) => kind === 'api-small' || kind === 'api-medium';

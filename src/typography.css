@@ -1,0 +1,72 @@
+/* Shared type refinements follow the responsive layout rules. */
+.mono, .console-metrics, .topbar-stat, .node-telemetry, .metric-value,
+.secondary-metrics, .requirements dd, .objectives li > strong,
+.inspector-stats dd, .log-row, .trace-row > strong, .cost-table,
+.cost-summary, .comparison-table {
+  font-variant-numeric: tabular-nums;
+}
+
+.log-row, .console-log { font-variant-ligatures: none; }
+.objectives li > strong, .brief-infrastructure strong { font-family: var(--mono); }
+
+/* Keep essential labels readable even in compact and mobile layouts. */
+.workspace-status, .sim-title .eyebrow, .topbar-stat > span:first-child,
+.topbar-budget > span:last-child, .workspace-context > .mono,
+.sidebar-heading > span, .mission-panel-intro .eyebrow,
+.mission-bob .bob-heading small, .mission-bob .bob-signature,
+.adjustable-workspace .palette-groups section > h3,
+.adjustable-workspace .canvas-legend, .adjustable-workspace .canvas-hint,
+.adjustable-workspace .canvas-region, .node-count, .dock-status,
+.metric-label, .metric-value > span, .metric-card-footer,
+.secondary-label, .secondary-label .text-muted,
+.secondary-metrics strong small, .telemetry-caption,
+.method-label, .cost-table th, .cost-table th:not(:first-child),
+.cost-summary > div > span, .cost-summary small,
+.comparison-table thead th, .completion-dialog > .eyebrow,
+.completion-checks, .completion-explanation h3,
+.sim-footer > .mono, .sim-footer > .mono > span:last-child,
+.sim-footer .estimate-note { font-size: 10px; }
+
+.adjustable-workspace .palette-size { font-size: 10px; }
+.metric-label { flex-wrap: wrap; }
+.metric-card-footer, .telemetry-caption { line-height: 1.6; }
+.canvas-legend, .completion-checks { flex-wrap: wrap; }
+.sim-footer { flex-wrap: wrap; gap: 8px 24px; }
+.sim-footer > .mono { flex-wrap: wrap; white-space: normal; }
+
+.hero-footnote, .console-title, .console-incident .eyebrow,
+.severity, .preview-wire span, .preview-cpu,
+.console-metrics > div > span:first-child, .console-metrics .text-muted,
+.console-log, .console-log b, .console-bottom, .console-bottom .mono,
+.mission-card-top, .live-label, .mission-company, .mission-card p,
+.mission-card-bottom, .brief-stamp span, .traffic-comparison span,
+.panel-title .mono, .bob-heading small, .estimate-note { font-size: 10px; }
+
+.hero-footnote, .console-bottom, .mission-card-top { flex-wrap: wrap; }
+.console-log { flex-wrap: wrap; white-space: normal; overflow-wrap: anywhere; }
+.console-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.console-metrics > div { min-width: 0; }
+.console-metrics strong { white-space: nowrap; }
+.console-metrics .text-muted { flex-wrap: wrap; }
+.preview-wire span { left: 50%; transform: translateX(-50%); }
+.brief-infrastructure > span:last-child { flex-wrap: wrap; gap: 6px; }
+.brief-infrastructure p { overflow-wrap: anywhere; }
+.bob-message > p, .adjustable-workspace .mission-bob .bob-message > p { font-size: 13px; }
+
+@media (max-width: 1200px) {
+  .console-metrics > div { padding-inline: 8px; }
+  .console-metrics strong { font-size: 20px; }
+}
+
+@media (max-width: 480px) {
+  .hero-copy h1 { font-size: clamp(44px, 13.5vw, 60px); letter-spacing: -2px; }
+  .console-incident { flex-wrap: wrap; }
+  .console-incident h2 { font-size: 12px; }
+  .console-metrics > div { padding-inline: 6px; }
+  .console-metrics strong { font-size: 16px; }
+  .console-metrics small { font-size: 10px; margin-left: 2px; }
+  .preview-node { min-width: 0; flex: 1; font-size: 10px; }
+  .preview-wire { width: 50px; flex-shrink: 0; }
+  .preview-wire span { top: -55px; }
+  .console-bottom .mono { margin-left: 0; }
+}

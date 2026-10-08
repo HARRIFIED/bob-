@@ -1,0 +1,145 @@
+/* Flexible simulator layout; mission data and telemetry keep their own state. */
+.resize-handle { display: none; }
+.canvas-toolbar-actions { display: flex; align-items: center; gap: 17px; }
+.canvas-toolbar-actions > button { white-space: nowrap; }
+.canvas-toolbar-actions > button:last-child { color: var(--mint); }
+.dock-header-actions { display: flex; align-items: center; gap: 9px; margin-left: auto; }
+.dock-header-actions > button { flex-shrink: 0; }
+.adjustable-workspace .dock-header { min-height: 43px; flex-shrink: 0; }
+.adjustable-workspace .dock-content[hidden], #mission-panel-body[hidden] { display: none; }
+.adjustable-workspace > .observability { container-type: inline-size; container-name: telemetry; }
+.adjustable-workspace .dock-content { scrollbar-gutter: stable; }
+.adjustable-workspace .mission-panel > .sidebar-heading { gap: 8px; }
+.adjustable-workspace .mission-panel > .sidebar-heading > .mono { margin-left: auto; }
+.adjustable-workspace .sidebar-heading > button { flex-shrink: 0; }
+.palette-size { display: none; }
+.mission-rail-label { display: block; writing-mode: vertical-rl; margin: 21px auto; font: 10px var(--mono); letter-spacing: 1.5px; color: #bdcaaa; }
+.adjustable-workspace.dock-collapsed > .observability { min-height: 44px; max-height: 44px; }
+
+@media (min-width: 901px) {
+  .sim-grid.adjustable-workspace {
+    display: grid;
+    grid-template-columns: var(--palette-width) 6px minmax(0, 1fr) 6px var(--mission-width);
+    grid-template-rows: minmax(0, 1fr) 6px var(--dock-height);
+    height: max(400px, calc(100dvh - 224px));
+    min-height: 0;
+  }
+  .adjustable-workspace > .palette { grid-column: 1; grid-row: 1 / 4; display: flex; border-right: 0; min-width: 0; }
+  .adjustable-workspace > .canvas-section { grid-column: 3; grid-row: 1; display: flex; min-height: 0; }
+  .adjustable-workspace > .mission-panel { grid-column: 5; grid-row: 1 / 4; display: block; border: 0; max-height: none; min-width: 0; }
+  .adjustable-workspace > .observability { grid-column: 3; grid-row: 3; min-height: 0; border-top: 0; }
+  .adjustable-workspace .sidebar-heading { min-height: 48px; padding: 9px 12px 9px 15px; }
+  .adjustable-workspace .sidebar-heading h2 { font-size: 12px; }
+  .adjustable-workspace .palette-item-name { font-size: 11px; }
+  .adjustable-workspace .palette-item-name > small { font-size: 10px; }
+  .adjustable-workspace .palette-item { padding: 8px 6px; gap: 9px; }
+  .adjustable-workspace .palette-groups section > h3 { font-size: 9px; }
+  .adjustable-workspace .mission-panel-intro { display: block; }
+  .adjustable-workspace .learning-tip, .adjustable-workspace .mission-correctness { display: flex; }
+  .adjustable-workspace .objectives { margin-inline: 15px; }
+  .adjustable-workspace .objectives li { gap: 8px; }
+  .adjustable-workspace .objectives li > div { font-size: 11px; }
+  .adjustable-workspace .objectives li > strong { font-size: 11px; }
+  .adjustable-workspace .objectives li small { font-size: 10px; }
+  .adjustable-workspace .objective-icon { width: 21px; height: 21px; }
+  .adjustable-workspace .mission-bob .bob-message > p { font-size: 12px; }
+  .adjustable-workspace .inspector-title h2 { font-size: 16px; }
+  .adjustable-workspace .canvas-toolbar { min-height: 43px; padding: 0 12px; gap: 10px; }
+  .adjustable-workspace .canvas-toolbar > div { gap: 8px; }
+  .adjustable-workspace .canvas-toolbar .canvas-toolbar-actions { gap: 14px; }
+  .adjustable-workspace .canvas-toolbar h2, .adjustable-workspace .canvas-toolbar .text-link { font-size: 11px; }
+  .adjustable-workspace .canvas-env { display: none; }
+  .adjustable-workspace .canvas-legend { flex-wrap: wrap; gap: 7px 10px; font-size: 8px; padding: 8px 11px; }
+  .adjustable-workspace .canvas-hint { max-width: calc(100% - 108px); line-height: 1.6; font-size: 8px; }
+  .adjustable-workspace .canvas-region { font-size: 8px; }
+  .adjustable-workspace .canvas-region > span:last-child { display: none; }
+
+  .resize-handle { display: flex; justify-content: center; align-items: center; position: relative; z-index: 12; background: #1b231d; touch-action: none; user-select: none; outline-offset: -1px; }
+  .resize-handle::before { content: ''; position: absolute; inset: 0 -3px; }
+  .resize-handle > span { pointer-events: none; display: block; width: 2px; height: 29px; border-radius: 3px; background: #647655; transition: background .15s; }
+  .resize-handle:hover, .resize-handle:focus-visible, .resize-handle[data-resizing] { background: #39472e; }
+  .resize-handle:hover > span, .resize-handle:focus-visible > span, .resize-handle[data-resizing] > span { background: var(--mint); }
+  .resize-components { grid-column: 2; grid-row: 1 / 4; cursor: col-resize; }
+  .resize-mission { grid-column: 4; grid-row: 1 / 4; cursor: col-resize; }
+  .resize-observability { grid-column: 3; grid-row: 2; cursor: row-resize; }
+  .resize-observability::before { inset: -3px 0; }
+  .resize-observability > span { width: 36px; height: 2px; }
+  body:has(.resize-handle[data-resizing]) { user-select: none; }
+
+  .adjustable-workspace .palette-compact .sidebar-heading { padding: 9px 0; justify-content: center; }
+  .palette-compact .sidebar-heading h2, .palette-compact .component-search, .palette-compact .palette-help,
+  .palette-compact .palette-item-name, .palette-compact .palette-plus, .palette-compact .palette-groups h3 { display: none; }
+  .adjustable-workspace .palette-compact .palette-groups { padding: 0 5px 14px; }
+  .palette-compact .palette-groups > section { border-top: 1px solid #34402d; padding-top: 8px; margin-top: 6px; }
+  .adjustable-workspace .palette-compact .palette-item { justify-content: center; padding: 5px 0; min-height: 43px; }
+  .palette-compact .component-icon { position: relative; width: 33px; height: 32px; }
+  .palette-compact .palette-size { display: block; position: absolute; right: -3px; bottom: -3px; background: #172023; border: 1px solid #647a82; border-radius: 3px; color: #dfedee; font: 8px var(--mono); padding: 1px 3px; }
+  .adjustable-workspace > .mission-compact { overflow: hidden; }
+  .adjustable-workspace .mission-compact .sidebar-heading { padding: 9px 0; justify-content: center; }
+  .mission-compact .sidebar-heading h2, .mission-compact .sidebar-heading > .mono { display: none; }
+
+  .sim-grid.architecture-expanded { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .architecture-expanded > .palette, .architecture-expanded > .mission-panel, .architecture-expanded > .observability, .architecture-expanded > .resize-handle { display: none; }
+  .architecture-expanded > .canvas-section { grid-column: 1; grid-row: 1; }
+  .architecture-expanded .canvas-env { display: inline; }
+}
+
+@container telemetry (max-width: 720px) {
+  .dock-status { display: none; }
+  .dock-header { padding-inline: 10px; gap: 4px; }
+  .dock-header [role=tablist] { gap: 13px; }
+  .dock-header [role=tab] { font-size: 11px; }
+  .dock-header-actions { gap: 0; }
+}
+@container telemetry (max-width: 610px) {
+  .metric-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .metric-value { font-size: 26px; }
+  .metric-label { font-size: 9px; }
+  .metric-card-footer { font-size: 8px; }
+  .secondary-metrics > div { flex-direction: column; align-items: flex-start; }
+  .secondary-metrics strong { margin-left: 0; }
+  .telemetry-caption { flex-wrap: wrap; line-height: 1.6; }
+  .telemetry-caption > span { display: none; }
+  .cost-panel { grid-template-columns: 1fr; }
+  .cost-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .cost-summary .budget-track, .cost-summary p { grid-column: 1 / -1; }
+  .log-row { grid-template-columns: 82px 35px minmax(0, 1fr); font-size: 10px; gap: 6px; padding-inline: 10px; }
+  .log-row > span { overflow-wrap: anywhere; }
+  .log-row > strong { font-size: 9px; }
+  .trace-heading .text-muted { display: none; }
+  .trace-row { grid-template-columns: 95px minmax(0, 1fr) 50px; font-size: 10px; }
+  .trace-row > strong, .trace-note { font-size: 10px; }
+  .trace-ruler { margin-left: 102px; }
+}
+
+/* Touch layouts keep the existing panel tabs instead of narrow resize dividers. */
+@media (max-width: 900px) {
+  .desktop-layout-control { display: none !important; }
+  .mobile-panels { display: flex; border-bottom: 1px solid var(--border); padding: 0 13px; background: #1b211c; }
+  .mobile-panels > button { flex: 1; display: flex; justify-content: center; align-items: center; gap: 7px; font-size: 11px; padding: 14px 7px; border-bottom: 2px solid transparent; color: #a8b999; }
+  .mobile-panels > button.active { border-color: var(--mint); color: var(--mint); }
+  .sim-grid.adjustable-workspace { display: flex; flex-direction: column; height: auto; min-height: 0; }
+  .adjustable-workspace > .palette, .adjustable-workspace > .mission-panel, .adjustable-workspace > .canvas-section { display: none; }
+  .adjustable-workspace.show-components > .palette { display: flex; min-height: 460px; max-height: 650px; border: 0; }
+  .adjustable-workspace.show-architecture > .canvas-section { display: flex; height: 410px; }
+  .adjustable-workspace.show-mission > .mission-panel { display: block; max-height: 620px; min-height: 460px; border: 0; }
+  .adjustable-workspace > .observability { display: flex; min-height: 333px; max-height: 480px; }
+  .adjustable-workspace.dock-collapsed > .observability { min-height: 44px; max-height: 44px; }
+  .adjustable-workspace .palette-groups { display: grid; grid-template-columns: 1fr 1fr; padding: 0 12px 15px; gap: 0 10px; }
+  .adjustable-workspace .palette-item-name { font-size: 12px; }
+  .adjustable-workspace .component-icon { width: 31px; height: 33px; }
+  .adjustable-workspace .sidebar-heading h2 { font-size: 13px; }
+  .adjustable-workspace .mission-panel-intro { display: block; }
+  .adjustable-workspace .objectives li > div, .adjustable-workspace .objectives li > strong { font-size: 12px; }
+  .adjustable-workspace .objectives { margin-inline: 17px; }
+  .adjustable-workspace .objectives li { gap: 10px; }
+  .adjustable-workspace .mission-bob { margin-bottom: 20px; }
+  .adjustable-workspace .mission-bob .bob-message > p { font-size: 12px; }
+  .adjustable-workspace .inspector { padding: 20px; }
+  .adjustable-workspace .inspector-title h2 { font-size: 18px; }
+  .adjustable-workspace .dock-header { flex-wrap: nowrap; }
+  .adjustable-workspace .dock-header [role=tablist] { gap: 14px; }
+  .adjustable-workspace .dock-status { display: none; }
+  .canvas-toolbar-actions { gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { .resize-handle > span { transition: none; } }
