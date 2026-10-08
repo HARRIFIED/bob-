@@ -4,6 +4,8 @@
 
 A browser-based system-design learning simulator. You are on call at SwiftPay during a payday traffic surge: run the existing architecture, investigate an incident, change the system, and learn from the consequences.
 
+Project conventions for coding agents and contributors are in [AGENTS.md](AGENTS.md), including typography, icon sourcing and attribution, Bob's branding, code organization, and verification.
+
 ## Run locally
 
 Requires Node.js 22.12+ (tested with Node 24).
