@@ -34,7 +34,8 @@ svg { flex-shrink: 0; }
 .icon-button { display: inline-flex; justify-content: center; align-items: center; width: 30px; height: 30px; border-radius: 4px; color: var(--muted); }
 .icon-button:hover:not(:disabled) { background: #2e3635; color: #f1f4ed; }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 23px; font-weight: 700; white-space: nowrap; padding: 0; letter-spacing: -.8px; }
-.brand-mark { display: inline-flex; align-items: center; justify-content: center; background: var(--mint); color: #1c291a; width: 35px; height: 35px; border-radius: 9px; }
+.brand-mark { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex-shrink: 0; }
+.brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .brand-slash { color: #58635a; margin: 0 9px; font-weight: 400; }
 .brand-sub { color: #b2b9b2; font-size: 12px; letter-spacing: .1px; font-weight: 500; }
 .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 100%; background: var(--green); flex-shrink: 0; }
@@ -165,8 +166,7 @@ svg { flex-shrink: 0; }
 .sim-shell { background: #111518; }
 .sim-header { display: flex; align-items: center; min-height: 57px; gap: 28px; padding: 0 23px; border-bottom: 1px solid var(--border); background: #15191b; }
 .sim-header .brand { font-size: 20px; }
-.sim-header .brand-mark { width: 28px; height: 28px; border-radius: 6px; }
-.sim-header .brand-mark svg { width: 19px; }
+.sim-header .brand-mark { width: 34px; height: 34px; }
 .sim-header .brand-sub { font-size: 10px; }
 .sim-header nav { display: flex; align-items: center; gap: 12px; font-size: 11px; color: var(--muted); border-left: 1px solid var(--border); padding-left: 26px; }
 .sim-header nav strong { color: #dbe2d6; font-weight: 400; }
