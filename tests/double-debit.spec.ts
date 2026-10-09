@@ -1,0 +1,220 @@
+import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+async function enter(page: Page) {
+  await page.goto('/');
+  await page.getByRole('button', { name: /02.*Double Debit/ }).click();
+  await expect(page.getByRole('heading', { name: 'Double Debit.', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Open Production Simulator' }).click();
+}
+async function run(page: Page) {
+  await page.getByRole('button', { name: /Run Simulation|Run Again/ }).click();
+  await expect(page.getByRole('button', { name: 'Run Again', exact: true })).toBeEnabled({ timeout: 12000 });
+}
+async function configureApi(page: Page, mode: 'always-create' | 'worker-memory' | 'postgres' = 'postgres') {
+  await page.getByRole('tab', { name: 'Ledger', exact: true }).click();
+  const settings = page.getByRole('tabpanel', { name: 'Ledger', exact: true }).locator('.api-policy');
+  if (!await settings.getAttribute('open').then(value => value !== null)) await settings.locator('summary').click();
+  await settings.getByLabel('On POST /transfers', { exact: true }).selectOption(mode);
+}
+async function audit(page: Page) {
+  const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(result.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => ({ target: n.target, summary: n.failureSummary })) }))).toEqual([]);
+}
+
+test('reproduce the ledger failure, configure API behavior, inspect HTTP evidence, and debrief', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await enter(page);
+  const ledger = page.getByRole('tabpanel', { name: 'Ledger', exact: true });
+  const bob = page.getByRole('region', { name: 'Bob’s engineering notes' });
+  await expect(ledger).toContainText('Run the baseline');
+  await ledger.locator('.ledger-policy').first().locator('summary').click();
+  await page.getByRole('button', { name: 'Run Simulation', exact: true }).click();
+  await expect(ledger.getByLabel('After a timeout')).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Missions', exact: true })).toBeDisabled();
+  await expect(bob).not.toHaveAttribute('data-mood', 'celebrating');
+  await expect(page.getByRole('button', { name: 'Run Again', exact: true })).toBeEnabled({ timeout: 12000 });
+  await ledger.locator('.ledger-policy').first().locator('summary').click();
+  await expect(page.getByLabel('Duplicate debits failed: 2', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Incorrect balances failed: 1', { exact: true })).toBeVisible();
+  await expect(ledger.locator('.ledger-summary')).toContainText('₦32,000.00');
+  await expect(ledger.locator('.ledger-verdict')).toContainText('Balance differs by ₦8,000.00');
+  await expect(ledger.locator('.ledger-table tbody tr')).toHaveCount(5);
+  await expect(ledger.locator('.ledger-duplicate')).toHaveCount(2);
+  await expect(ledger.locator('.ledger-attempt')).toHaveCount(5);
+  await page.getByRole('separator', { name: 'Resize observability panel' }).focus();
+  await page.keyboard.press('End');
+  await page.screenshot({ path: test.info().outputPath('double-debit-incident.png'), fullPage: true });
+  await audit(page);
+  await page.getByRole('tab', { name: 'Logs', exact: true }).click();
+  await expect(page.getByRole('log')).toContainText('response lost');
+  await expect(page.getByRole('log')).toContainText('Duplicate debit');
+  await page.getByRole('tab', { name: 'Traces', exact: true }).click();
+  await expect(page.getByRole('tabpanel')).toContainText('Retry: new debit');
+  await configureApi(page);
+  await expect(bob).toHaveAttribute('data-mood', 'thinking');
+  await expect(page.getByLabel('Duplicate debits not measured: —', { exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: 'Ledger', exact: true }).click();
+  await expect(ledger).toContainText('Previous run shown');
+  await run(page);
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('dialog')).toContainText('Retries return the original receipts');
+  await expect(page.getByRole('dialog').getByRole('cell', { name: '₦40,000.00', exact: true })).toBeVisible();
+  await audit(page);
+  await page.getByRole('button', { name: 'Inspect your system' }).click();
+  await expect(bob).toHaveAttribute('data-mood', 'celebrating');
+  await expect(bob).toContainText('2 fewer duplicate debits vs. your last run');
+  await expect(ledger.locator('.ledger-table tbody tr')).toHaveCount(3);
+  await expect(ledger.locator('.is-replay')).toHaveCount(2);
+  await expect(ledger.locator('.ledger-attempt').last()).toContainText('receipt-003');
+  const attempts = ledger.locator('.ledger-attempt');
+  await expect(attempts.nth(0)).toContainText('API Server 01');
+  await expect(attempts.nth(1)).toContainText('API Server 02');
+  await expect(attempts.nth(0)).toContainText('receipt-001');
+  await expect(attempts.nth(1)).toContainText('receipt-001');
+  await attempts.nth(0).locator('.request-evidence > summary').click();
+  await attempts.nth(1).locator('.request-evidence > summary').click();
+  await expect(ledger.getByLabel('HTTP request req-002', { exact: true })).toContainText('Idempotency-Key: pay-1042');
+  await expect(ledger.getByLabel('HTTP request req-002', { exact: true })).toContainText('"amountMinor": 500000');
+  await expect(ledger.getByLabel('HTTP response req-002', { exact: true })).toHaveText(await ledger.getByLabel('HTTP response req-001', { exact: true }).innerText());
+  await expect(attempts.nth(0)).toContainText('Server response · lost in transit');
+  await expect(attempts.nth(1)).toContainText('transfers table: matching record found');
+  await expect(page.getByRole('button', { name: /Inspect API Server/ })).toHaveCount(2);
+  await expect(ledger.locator('.saved-response')).toHaveCount(3);
+  await page.screenshot({ path: test.info().outputPath('double-debit-protected.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Mission debrief', exact: true }).click();
+  await page.getByRole('button', { name: 'Replay Mission', exact: true }).click();
+  await expect(page.getByRole('heading', { name: /Double Debit/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Run Simulation', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Inspect Idempotency Guard', exact: true })).toHaveCount(0);
+  await expect(ledger.locator('.ledger-table')).toHaveCount(0);
+  await expect(ledger.locator('.api-policy')).toContainText('Create a new transfer');
+  expect(errors).toEqual([]);
+});
+
+test('retry experiments invalidate results and neither new keys nor no retries count as recovery', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await enter(page);
+  const ledger = page.getByRole('tabpanel', { name: 'Ledger', exact: true });
+  await ledger.locator('.ledger-policy').first().locator('summary').click();
+  await ledger.getByLabel('After a timeout').selectOption('stop');
+  await run(page);
+  await expect(page.getByLabel('Transfers confirmed failed: 33.33%', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Duplicate debits passed: 0', { exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  await ledger.getByLabel('After a timeout').selectOption('retry');
+  await ledger.getByLabel('Idempotency-Key header').selectOption('new-key');
+  await configureApi(page);
+  await run(page);
+  await expect(page.getByLabel('Duplicate debits failed: 2', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Bob’s engineering notes' })).toContainText('A new key looks like a new transfer');
+  await ledger.getByLabel('Idempotency-Key header').selectOption('same-key');
+  await expect(page.getByLabel('Duplicate debits not measured: —', { exact: true })).toBeVisible();
+  await run(page);
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button', { name: 'Inspect your system' }).click();
+  await page.getByRole('button', { name: 'Inspect Mobile Clients', exact: true }).click();
+  const inspector = page.getByRole('complementary', { name: 'Mission and component details' });
+  await expect(inspector.getByLabel('Idempotency-Key header')).toHaveValue('same-key');
+  await inspector.getByLabel('Idempotency-Key header').selectOption('new-key');
+  await expect(ledger.getByLabel('Idempotency-Key header')).toHaveValue('new-key');
+  await expect(page.getByRole('region', { name: 'Bob’s engineering notes' })).toHaveAttribute('data-mood', 'thinking');
+});
+
+test('mission switching resets results while the infrastructure catalog stays consistent', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Start a Mission', exact: true }).click();
+  await page.getByRole('button', { name: 'Open Production Simulator' }).click();
+  await page.getByRole('button', { name: 'Add API Server Medium', exact: true }).click({ clickCount: 2, delay: 100 });
+  await page.getByRole('button', { name: 'Add Redis Cache', exact: true }).click();
+  await run(page);
+  await page.getByRole('button', { name: /Next Mission: Double Debit/ }).click();
+  await expect(page.getByRole('heading', { name: 'Double Debit.', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Open Production Simulator' }).click();
+  await expect(page.getByRole('tab', { name: 'Ledger', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('button', { name: 'Add Redis Cache', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Add Idempotency Guard', exact: true })).toHaveCount(0);
+  await run(page);
+  await expect(page.getByLabel('Duplicate debits failed: 2', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Missions', exact: true }).click();
+  await page.getByRole('button', { name: /01.*Payday Surge/ }).click();
+  await page.getByRole('button', { name: 'Open Production Simulator' }).click();
+  await expect(page.getByRole('tab', { name: 'Ledger', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Run Simulation', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add Idempotency Guard', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Inspect Redis Cache', exact: true })).toHaveCount(0);
+});
+
+test('compact desktop preserves resizing, expansion, and keyboard access to ledger tabs', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await enter(page);
+  await page.getByRole('button', { name: 'Collapse Components to icons' }).click();
+  await page.getByRole('button', { name: 'Collapse Mission panel' }).click();
+  await run(page);
+  await page.getByRole('tab', { name: 'Ledger', exact: true }).focus();
+  await page.keyboard.press('End');
+  await expect(page.getByRole('tab', { name: 'Cost', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Ledger', exact: true })).toBeFocused();
+  await page.getByRole('button', { name: 'Expand architecture', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('tab', { name: 'Ledger', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath('double-debit-compact.png'), fullPage: true });
+});
+
+test('Redis and worker memory are meaningful experiments, and API settings persist through scale changes', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await enter(page);
+  const ledger = page.getByRole('tabpanel', { name: 'Ledger', exact: true });
+  await page.getByRole('button', { name: 'Add Redis Cache', exact: true }).click();
+  await run(page);
+  await expect(page.getByLabel('Duplicate debits failed: 2', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Bob’s engineering notes' })).toContainText('These are writes');
+  await page.getByRole('button', { name: 'Inspect API Server 01', exact: true }).click();
+  const inspector = page.getByRole('complementary', { name: 'Mission and component details' });
+  await inspector.getByLabel('On POST /transfers', { exact: true }).selectOption('worker-memory');
+  await page.getByRole('button', { name: 'Back to mission', exact: true }).click();
+  await run(page);
+  await expect(page.getByRole('region', { name: 'Bob’s engineering notes' })).toContainText('outlived the worker’s memory');
+  await expect(ledger.locator('.ledger-attempt').last()).toContainText('Committed');
+  await ledger.locator('.ledger-attempt').last().locator('.request-evidence > summary').click();
+  await expect(ledger.locator('.ledger-attempt').last()).toContainText('Worker restarted');
+  await configureApi(page);
+  await page.getByRole('button', { name: 'Add API Server Small', exact: true }).click();
+  await page.getByRole('button', { name: 'Inspect API Server 03', exact: true }).click();
+  await expect(inspector.getByLabel('On POST /transfers', { exact: true })).toHaveValue('postgres');
+  await run(page);
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button', { name: 'Inspect your system' }).click();
+  await expect(ledger.locator('.ledger-verdict')).toContainText('0 duplicate debits');
+  await expect(ledger.locator('.ledger-verdict')).toContainText('3/3 transfers confirmed');
+});
+
+test('mobile ledger and policy controls remain accessible offline without page overflow', async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await enter(page);
+  await context.setOffline(true);
+  await run(page);
+  const ledger = page.getByRole('tabpanel', { name: 'Ledger', exact: true });
+  await ledger.locator('.ledger-policy').first().locator('summary').click();
+  await expect(ledger.getByLabel('Idempotency-Key header')).toBeEnabled();
+  await audit(page);
+  await page.getByRole('button', { name: 'Components', exact: true }).click();
+  await configureApi(page);
+  await page.getByRole('button', { name: 'Architecture', exact: true }).click();
+  await run(page);
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Inspect your system' }).click();
+  await ledger.locator('.ledger-policy').first().locator('summary').click();
+  await expect(ledger.locator('.ledger-verdict')).toContainText('0 duplicate debits');
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await audit(page);
+  await page.screenshot({ path: test.info().outputPath('double-debit-mobile.png'), fullPage: true });
+});

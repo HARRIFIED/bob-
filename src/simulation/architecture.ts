@@ -1,5 +1,5 @@
 import { definitions, isApi } from '../data/component-definitions';
-import type { ArchitectureState, ComponentKind } from './types';
+import type { ArchitectureState, ComponentKind, RequestHandling } from './types';
 
 export function canConnect(architecture: ArchitectureState, source: string, target: string) {
   const from = architecture.nodes.find(n => n.id === source);
@@ -23,19 +23,21 @@ export function arrange(architecture: ArchitectureState): ArchitectureState {
     : { x: n.kind === 'users' ? 0 : n.kind === 'load-balancer' ? 240 : n.kind === 'redis' ? 740 : hasCache ? 1000 : 780, y: center } })) };
 }
 export function addComponent(architecture: ArchitectureState, kind: ComponentKind): ArchitectureState {
-  if (!definitions[kind].available || (kind === 'redis' && architecture.nodes.some(n => n.kind === 'redis'))) return architecture;
+  if (!definitions[kind].available) return architecture;
+  if (kind === 'redis' && architecture.nodes.some(n => n.kind === kind)) return architecture;
   const apis = architecture.nodes.filter(n => isApi(n.kind));
   if (isApi(kind) && apis.length >= 12) return architecture;
   let index = 1;
   while (architecture.nodes.some(n => n.id === `${isApi(kind) ? 'api' : kind}-${index}`)) index++;
   const id = `${isApi(kind) ? 'api' : kind}-${index}`;
-  let next: ArchitectureState = { nodes: [...architecture.nodes, { id, kind, label: isApi(kind) ? `API Server ${String(index).padStart(2, '0')}` : definitions[kind].name, position: { x: 0, y: 0 }, added: true }], edges: [...architecture.edges] };
+  let next: ArchitectureState = { ...architecture, nodes: [...architecture.nodes, { id, kind, label: isApi(kind) ? `API Server ${String(index).padStart(2, '0')}` : definitions[kind].name, position: { x: 0, y: 0 }, added: true }], edges: [...architecture.edges] };
   const db = next.nodes.find(n => n.kind === 'postgres');
   const lb = next.nodes.find(n => n.kind === 'load-balancer');
   const cache = next.nodes.find(n => n.kind === 'redis');
   if (isApi(kind)) {
     if (lb) next = connect(next, lb.id, id);
-    if (cache || db) next = connect(next, id, (cache ?? db)!.id);
+    const dependency = cache ?? db;
+    if (dependency) next = connect(next, id, dependency.id);
   } else if (kind === 'redis' && db) {
     next.edges = next.edges.filter(e => !(apis.some(n => n.id === e.source) && e.target === db.id));
     for (const api of apis) next = connect(next, api.id, id);
@@ -46,10 +48,14 @@ export function addComponent(architecture: ArchitectureState, kind: ComponentKin
 export function removeComponent(architecture: ArchitectureState, id: string): ArchitectureState {
   const node = architecture.nodes.find(n => n.id === id);
   if (!node?.added) return architecture;
-  let next = { nodes: architecture.nodes.filter(n => n.id !== id), edges: architecture.edges.filter(e => e.source !== id && e.target !== id) };
+  let next = { ...architecture, nodes: architecture.nodes.filter(n => n.id !== id), edges: architecture.edges.filter(e => e.source !== id && e.target !== id) };
   if (node.kind === 'redis') {
     const db = next.nodes.find(n => n.kind === 'postgres');
     if (db) for (const api of next.nodes.filter(n => isApi(n.kind))) next = connect(next, api.id, db.id);
   }
   return arrange(next);
+}
+
+export function configureRequestHandling(architecture: ArchitectureState, requestHandling: RequestHandling): ArchitectureState {
+  return architecture.requestHandling === requestHandling ? architecture : { ...architecture, requestHandling };
 }

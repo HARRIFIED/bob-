@@ -7,6 +7,8 @@
 }
 
 .log-row, .console-log { font-variant-ligatures: none; }
+.request-evidence pre, .saved-response pre { font-variant-ligatures: none; font-variant-numeric: tabular-nums; }
+.ledger-table .mono, .ledger-attempt .mono, .ledger-summary dd { font-variant-numeric: tabular-nums; font-variant-ligatures: none; }
 .objectives li > strong, .brief-infrastructure strong { font-family: var(--mono); }
 
 /* Keep essential labels readable even in compact and mobile layouts. */

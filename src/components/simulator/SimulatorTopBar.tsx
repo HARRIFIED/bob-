@@ -6,5 +6,34 @@ import { Logo } from '../shared';
 export function SimulatorTopBar() {
   const s = useSimulator();
   const cost = monthlyCost(s.architecture);
-  return <><header className="sim-header"><Logo onClick={() => s.navigate('entry')} /><nav aria-label="Mission breadcrumb"><span>Missions</span><ChevronRight size={13} /><span>SwiftPay</span><ChevronRight size={13} /><strong>Payday Surge</strong></nav><button className="text-link" onClick={() => s.navigate('brief')} disabled={s.running}><CircleHelp size={15} /> Mission brief</button></header><div className="sim-topbar"><div className="sim-title"><div className="eyebrow"><Radio size={12} /> PRODUCTION LAB <span className="sim-id">/ INC–001</span></div><h1>Payday Surge <span className={`workspace-status ${s.running ? 'running' : s.stale ? 'changed' : s.result?.missionState ?? 'idle'}`}>{s.running ? 'SIMULATING' : s.stale ? 'CHANGES PENDING' : s.result?.missionState === 'stable' ? 'STABLE' : s.result ? 'INCIDENT OPEN' : 'AWAITING TRAFFIC'}</span></h1></div><div className="topbar-stat"><span>PEAK TRAFFIC</span><strong>12,000 <small>req/s</small></strong></div><div className={`topbar-stat topbar-budget ${cost > s.scenario.budget ? 'over-budget' : ''}`}><span>MONTHLY ESTIMATE</span><strong>{money(cost)} <small>/ {money(s.scenario.budget)}</small></strong><span>{cost > s.scenario.budget ? `OVER BUDGET · ${money(cost - s.scenario.budget)}` : `${money(s.scenario.budget - cost)} remaining`}</span></div><div className="run-controls"><button className="button primary run-button" onClick={s.run} disabled={s.running}>{s.running ? <LoaderCircle size={16} className="spin" /> : s.runCount ? <RotateCcw size={16} /> : <Play size={16} fill="currentColor" />}{s.running ? 'Simulating…' : s.runCount ? 'Run Again' : 'Run Simulation'}</button>{s.running && <button className="skip-button" onClick={s.skip}>Skip animation</button>}</div></div></>;
+  return <>
+    <header className="sim-header">
+      <Logo onClick={() => s.navigate('entry')} />
+      <nav aria-label="Mission breadcrumb">
+        <button className="text-link" onClick={() => s.navigate('entry')} disabled={s.running}>Missions</button>
+        <ChevronRight size={13} /><span>{s.scenario.company}</span><ChevronRight size={13} /><strong>{s.scenario.title}</strong>
+      </nav>
+      <button className="text-link" onClick={() => s.navigate('brief')} disabled={s.running}><CircleHelp size={15} /> Mission brief</button>
+    </header>
+    <div className="sim-topbar">
+      <div className="sim-title">
+        <div className="eyebrow"><Radio size={12} /> PRODUCTION LAB <span className="sim-id">/ {s.scenario.incidentId}</span></div>
+        <h1>{s.scenario.title} <span className={`workspace-status ${s.running ? 'running' : s.stale ? 'changed' : s.result?.missionState ?? 'idle'}`}>
+          {s.running ? 'SIMULATING' : s.stale ? 'CHANGES PENDING' : s.result?.missionState === 'stable' ? 'STABLE' : s.result ? 'INCIDENT OPEN' : 'AWAITING TRAFFIC'}
+        </span></h1>
+      </div>
+      <div className="topbar-stat"><span>{s.scenario.presentation.loadLabel}</span><strong>{s.scenario.trafficProfile.peak.toLocaleString('en-US')} <small>req/s</small></strong></div>
+      <div className={`topbar-stat topbar-budget ${cost > s.scenario.budget ? 'over-budget' : ''}`}>
+        <span>MONTHLY ESTIMATE</span><strong>{money(cost)} <small>/ {money(s.scenario.budget)}</small></strong>
+        <span>{cost > s.scenario.budget ? `OVER BUDGET · ${money(cost - s.scenario.budget)}` : `${money(s.scenario.budget - cost)} remaining`}</span>
+      </div>
+      <div className="run-controls">
+        <button className="button primary run-button" onClick={s.run} disabled={s.running}>
+          {s.running ? <LoaderCircle size={16} className="spin" /> : s.runCount ? <RotateCcw size={16} /> : <Play size={16} fill="currentColor" />}
+          {s.running ? 'Simulating…' : s.runCount ? 'Run Again' : 'Run Simulation'}
+        </button>
+        {s.running && <button className="skip-button" onClick={s.skip}>Skip animation</button>}
+      </div>
+    </div>
+  </>;
 }

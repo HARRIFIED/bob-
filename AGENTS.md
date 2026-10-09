@@ -7,7 +7,7 @@ Apply these conventions to work in this project unless the user's task explicitl
 - This is a browser-based system-design learning simulator. Keep the experience friendly, interactive, and grounded in the consequences of the learner's decisions.
 - Use the existing React, TypeScript, Vite, Tailwind CSS, React Flow, and Lucide stack. Prefer existing dependencies and small reusable helpers over new frameworks or packages.
 - Preserve operation without network access after the initial assets load. Do not introduce runtime font/image CDNs, external APIs, or an AI service unless the task calls for them.
-- Payday Surge is currently the playable mission. Future components and missions must remain clearly marked as previews until their behavior is implemented.
+- Payday Surge and Double Debit are playable missions. Future components and missions must remain clearly marked as previews until their behavior is implemented.
 
 ## Typography
 

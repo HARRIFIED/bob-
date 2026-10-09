@@ -1,36 +1,40 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { paydaySurge } from '../scenarios/payday-surge';
-import { addComponent, arrange, connect, removeComponent } from '../simulation/architecture';
+import { scenarios } from '../scenarios';
+import { addComponent, arrange, configureRequestHandling, connect, removeComponent } from '../simulation/architecture';
 import { simulate } from '../simulation/engine';
-import { isApi } from '../data/component-definitions';
-import type { ArchitectureState, ComponentKind, SimulationResult, TelemetrySnapshot } from '../simulation/types';
+import { definitions, isApi } from '../data/component-definitions';
+import type { ArchitectureState, ComponentKind, RequestHandling, RetryPolicy, SimulationResult, TelemetrySnapshot } from '../simulation/types';
 
-export type DockTab = 'Metrics' | 'Logs' | 'Traces' | 'Cost';
+export type DockTab = 'Metrics' | 'Logs' | 'Traces' | 'Cost' | 'Ledger';
 interface State {
+  scenarioId: string;
   screen: 'entry' | 'brief' | 'simulator'; architecture: ArchitectureState; selectedId: string | null;
   result: SimulationResult | null; completedResult: SimulationResult | null; previousResult: SimulationResult | null;
   history: TelemetrySnapshot[]; phase: number; runCount: number;
   revision: number; lastRunRevision: number; showCompletion: boolean; tab: DockTab; notice: string;
 }
-const initialState = (): State => ({ screen: 'entry', architecture: structuredClone(paydaySurge.initialArchitecture), selectedId: null,
-  result: null, completedResult: null, previousResult: null, history: [], phase: -1, runCount: 0, revision: 0, lastRunRevision: -1, showCompletion: false, tab: 'Metrics', notice: '' });
+const initialState = (scenarioId = 'payday-surge'): State => ({ scenarioId, screen: 'entry', architecture: structuredClone(scenarios[scenarioId].initialArchitecture), selectedId: null,
+  result: null, completedResult: null, previousResult: null, history: [], phase: -1, runCount: 0, revision: 0, lastRunRevision: -1, showCompletion: false, tab: scenarios[scenarioId].presentation.initialTab, notice: '' });
 function finish(state: State): State {
-  const result = simulate({ scenario: paydaySurge, architecture: state.architecture });
+  const scenario = scenarios[state.scenarioId];
+  const result = simulate({ scenario, architecture: state.architecture });
   return { ...state, result, completedResult: result, previousResult: state.completedResult, phase: -1, runCount: state.runCount + 1, lastRunRevision: state.revision,
-    history: paydaySurge.trafficProfile.ramp.map(ratio => simulate({ scenario: paydaySurge, architecture: state.architecture, traffic: ratio * paydaySurge.trafficProfile.peak }).telemetry),
+    history: scenario.trafficProfile.ramp.map((ratio, phase) => simulate({ scenario, architecture: state.architecture, traffic: ratio * scenario.trafficProfile.peak, phase }).telemetry),
     showCompletion: result.missionState === 'stable', notice: result.missionState === 'stable' ? 'Mission stable. All objectives passed.' : 'Simulation complete. Inspect telemetry to diagnose the incident.' };
 }
 function useSimulatorState() {
-  const [state, setState] = useState<State>(initialState);
+  const [state, setState] = useState<State>(() => initialState());
+  const scenario = scenarios[state.scenarioId];
   const running = state.phase >= 0;
   useEffect(() => {
     if (!running) return;
     const timer = window.setTimeout(() => setState(current => {
       if (current.phase < 0) return current;
-      if (current.phase >= paydaySurge.trafficProfile.ramp.length - 1) return finish(current);
+      const activeScenario = scenarios[current.scenarioId];
+      if (current.phase >= activeScenario.scriptedEvents.length - 1) return finish(current);
       const phase = current.phase + 1;
-      const result = simulate({ scenario: paydaySurge, architecture: current.architecture, traffic: paydaySurge.trafficProfile.peak * paydaySurge.trafficProfile.ramp[phase] });
+      const result = simulate({ scenario: activeScenario, architecture: current.architecture, traffic: activeScenario.trafficProfile.peak * activeScenario.trafficProfile.ramp[phase], phase });
       return { ...current, phase, result, history: [...current.history, result.telemetry] };
     }), 650);
     return () => window.clearTimeout(timer);
@@ -43,12 +47,18 @@ function useSimulatorState() {
   });
   return {
     ...state, running, stale: state.result !== null && !running && state.revision !== state.lastRunRevision,
-    scenario: paydaySurge,
-    baseline: useMemo(() => simulate({ scenario: paydaySurge, architecture: paydaySurge.initialArchitecture }), []),
-    navigate: (screen: State['screen']) => setState(c => ({ ...c, screen })),
+    scenario,
+    baseline: useMemo(() => simulate({ scenario, architecture: scenario.initialArchitecture }), [scenario]),
+    navigate: (screen: State['screen']) => setState(c => c.phase >= 0 ? c : ({ ...c, screen })),
+    selectMission: (id: string) => setState(c => {
+      if (c.phase >= 0 || !scenarios[id]) return c;
+      return id === c.scenarioId ? { ...c, screen: 'brief', showCompletion: false } : { ...initialState(id), screen: 'brief' };
+    }),
     select: (selectedId: string | null) => setState(c => ({ ...c, selectedId })),
-    setTab: (tab: DockTab) => setState(c => ({ ...c, tab })),
-    add: (kind: ComponentKind) => edit(a => addComponent(a, kind), `${kind === 'redis' ? 'Redis added. API traffic now routes through the cache to PostgreSQL.' : 'API server added and connected.'} Run again to measure the change.`),
+    setTab: (tab: DockTab) => setState(c => tab === 'Ledger' && scenarios[c.scenarioId].engine !== 'transfers' ? c : ({ ...c, tab })),
+    add: (kind: ComponentKind) => edit(a => addComponent(a, kind), `${definitions[kind].name} added and connected. Run again to measure the change.`),
+    setRetryPolicy: (policy: RetryPolicy) => edit(a => ({ ...a, nodes: a.nodes.map(node => node.kind === 'users' ? { ...node, retryPolicy: { ...policy } } : node) }), 'Retry policy changed. Replay the incident to check the ledger and confirmations.'),
+    setRequestHandling: (policy: RequestHandling) => edit(a => configureRequestHandling(a, policy), 'API request handling updated for all workers. Rerun to test the behavior.'),
     remove: (id: string) => { edit(a => removeComponent(a, id), 'Component removed. Monthly cost updated.'); setState(c => ({ ...c, selectedId: null })); },
     resize: (id: string, kind: 'api-small' | 'api-medium') => edit(a => ({ ...a, nodes: a.nodes.map(n => n.id === id && isApi(n.kind) ? { ...n, kind } : n) }), 'API resized. Run again to measure its capacity.'),
     connect: (source: string, target: string) => edit(a => connect(a, source, target), 'Connection added. Run again to measure the change.'),
@@ -58,13 +68,14 @@ function useSimulatorState() {
     run: () => setState(c => {
       if (c.phase >= 0) return c;
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return finish(c);
-      const result = simulate({ scenario: paydaySurge, architecture: c.architecture, traffic: paydaySurge.trafficProfile.normal });
-      return { ...c, phase: 0, result, history: [result.telemetry], showCompletion: false, notice: 'Simulation running. Traffic is ramping toward 12,000 requests per second.' };
+      const activeScenario = scenarios[c.scenarioId];
+      const result = simulate({ scenario: activeScenario, architecture: c.architecture, traffic: activeScenario.trafficProfile.normal, phase: 0 });
+      return { ...c, phase: 0, result, history: [result.telemetry], showCompletion: false, notice: `Simulation running. Replaying ${activeScenario.title}.` };
     }),
     skip: () => setState(c => c.phase >= 0 ? finish(c) : c),
-    replay: () => setState({ ...initialState(), screen: 'simulator' }),
+    replay: () => setState(c => c.phase >= 0 ? c : { ...initialState(c.scenarioId), screen: 'simulator' }),
     closeCompletion: () => setState(c => ({ ...c, showCompletion: false })),
-    openCompletion: () => setState(c => ({ ...c, showCompletion: true })),
+    openCompletion: () => setState(c => c.phase < 0 && c.revision === c.lastRunRevision && c.completedResult?.missionState === 'stable' ? { ...c, showCompletion: true } : c),
   };
 }
 type SimulatorStore = ReturnType<typeof useSimulatorState>;

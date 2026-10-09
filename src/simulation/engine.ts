@@ -2,10 +2,12 @@ import { definitions, isApi } from '../data/component-definitions';
 import { monthlyCost } from './cost';
 import { clamp, healthForCpu, objectivePasses, round } from './formulas';
 import { generateLogs, generateTrace } from './telemetry';
+import { simulateTransfers } from './transfers';
 import type { NodeTelemetry, SimulationInput, SimulationResult, TelemetrySnapshot } from './types';
 
 /** Pure educational model: identical input produces identical output. No clock, network, or RNG. */
-export function simulate({ scenario, architecture, traffic = scenario.trafficProfile.peak }: SimulationInput): SimulationResult {
+export function simulate({ scenario, architecture, traffic = scenario.trafficProfile.peak, phase }: SimulationInput): SimulationResult {
+  if (scenario.engine === 'transfers') return simulateTransfers({ scenario, architecture, traffic, phase });
   traffic = Math.max(0, Number.isFinite(traffic) ? traffic : 0);
   const { nodes, edges } = architecture;
   const linked = (from: string, to: string) => edges.some(e => e.source === from && e.target === to);
@@ -38,6 +40,7 @@ export function simulate({ scenario, architecture, traffic = scenario.trafficPro
     dbConnections: active.length ? Math.min(100, Math.ceil(15 + dbPressure * 80)) : 0,
     cacheHitRate: round(hitRate * 100), p95: broken ? 2000 : scenario.model.baseP95 + apiQueue + dbQueue,
     errorRate, incorrectBalances: 0, availability: round(100 - errorRate, 2), cost: monthlyCost(architecture),
+    duplicateDebits: 0, retryAttempts: 0, replayedRequests: 0, completionRate: 0,
   };
   const perNode: Record<string, NodeTelemetry> = {};
   for (const node of nodes) {

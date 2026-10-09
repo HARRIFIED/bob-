@@ -16,8 +16,11 @@ export function ComponentPalette({ collapsed, onToggle }: { collapsed: boolean; 
       const exists = architecture.nodes.some(n => n.kind === def.id);
       const fixed = def.id === 'load-balancer' || def.id === 'postgres';
       const limit = isApi(def.id) && apiCount >= 12;
-      const disabled = !def.available || running || (def.id === 'redis' && exists) || limit;
-      return <button key={def.id} className={`palette-item ${!def.available && !fixed ? 'preview-only' : ''}`} disabled={disabled} onClick={() => add(def.id)} aria-label={`Add ${def.name}`} title={`${def.name} · $${def.monthlyCost}/mo — ${def.description}`}><span className={`component-icon ${def.category.toLowerCase()}`}><ComponentIcon kind={def.id} size={17} />{isApi(def.id) && <span className="palette-size" aria-hidden="true">{def.id === 'api-small' ? 'S' : 'M'}</span>}</span><span className="palette-item-name">{def.name}<small>{fixed ? 'Provisioned' : !def.available ? 'Future mission' : def.id === 'redis' && exists ? 'Added to architecture' : limit ? '12 instance limit' : `$${def.monthlyCost}/mo`}</small></span>{def.available && !(def.id === 'redis' && exists) && !limit && <Plus size={14} className="palette-plus" />}</button>;
+      const available = def.available;
+      const singleton = def.id === 'redis';
+      const preview = 'Preview · not simulated';
+      const disabled = !available || running || (singleton && exists) || limit;
+      return <button key={def.id} className={`palette-item ${!available && !fixed ? 'preview-only' : ''}`} disabled={disabled} onClick={() => add(def.id)} aria-label={`Add ${def.name}`} title={`${def.name} · $${def.monthlyCost}/mo — ${def.description}`}><span className={`component-icon ${def.category.toLowerCase()}`}><ComponentIcon kind={def.id} size={17} />{isApi(def.id) && <span className="palette-size" aria-hidden="true">{def.id === 'api-small' ? 'S' : 'M'}</span>}</span><span className="palette-item-name">{def.name}<small>{fixed ? 'Provisioned' : !available ? preview : singleton && exists ? 'Added to architecture' : limit ? '12 instance limit' : `$${def.monthlyCost}/mo`}</small></span>{available && !(singleton && exists) && !limit && <Plus size={14} className="palette-plus" />}</button>;
     })}</section>;
   })}{search && !Object.values(definitions).some(d => d.id !== 'users' && d.name.toLowerCase().includes(search.toLowerCase())) && <p className="empty-copy">No matching components.</p>}</div><div className="palette-help"><Info size={15} /><p>Click to add a component. We’ll connect it to the request path. Select a node to inspect or rewire it.</p></div></aside>;
 }

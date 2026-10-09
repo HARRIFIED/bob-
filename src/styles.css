@@ -312,6 +312,76 @@ svg { flex-shrink: 0; }
 .inline-notice { font-size: 10px; color: var(--amber); padding: 10px; background: #332a20; line-height: 1.7; margin-bottom: 15px; border-radius: 4px; }
 .resize-control { display: block; font-size: 10px; color: #b7c3ae; margin: 18px 0; }
 select { background: #192019; border: 1px solid #4a5842; border-radius: 4px; padding: 8px 7px; color: #d9e5cc; font-size: 10px; min-height: 34px; }
+
+/* Transfer evidence shares the workspace theme and scrolls within the dock. */
+.ledger-panel { padding: 16px; min-width: 0; }
+.ledger-heading { display: flex; align-items: flex-start; gap: 9px; color: var(--mint); }
+.ledger-heading > svg { flex-shrink: 0; margin-top: 2px; }
+.ledger-heading h3 { font-size: 14px; font-weight: 500; margin: 0; }
+.ledger-heading p, .ledger-explanation, .ledger-footnote { font-size: 12px; line-height: 1.65; color: #b2c2a3; margin: 5px 0 12px; }
+.retry-controls { margin: 10px 0 16px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 5px; display: flex; flex-wrap: wrap; gap: 10px 14px; min-width: 0; }
+.retry-controls legend { padding: 0 5px; font-size: 12px; color: var(--mint); }
+.retry-controls > div { flex: 1 1 175px; min-width: 0; }
+.retry-controls label { display: block; font-size: 12px; margin-bottom: 6px; color: #c4d6b1; }
+.retry-controls select { width: 100%; max-width: 100%; font-size: 12px; }
+.retry-controls > p { flex-basis: 100%; font-size: 11px; color: #aab8a0; line-height: 1.6; margin: 0; }
+.ledger-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin: 0 0 12px; }
+.ledger-summary > div { background: #19201b; border: 1px solid #384132; border-radius: 4px; padding: 10px; }
+.ledger-summary dt { font-size: 11px; color: #b2c2a3; margin-bottom: 8px; }
+.ledger-summary dd { font: 500 15px var(--mono); color: var(--mint); margin: 0; overflow-wrap: anywhere; }
+.ledger-summary .ledger-mismatch { border-color: #9a6356; }
+.ledger-summary .ledger-mismatch dd { color: #f1a98d; }
+.ledger-verdict { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.8; color: #c4d6b1; }
+.ledger-verdict svg { flex-shrink: 0; margin-top: 3px; color: var(--amber); }
+.ledger-verdict strong { color: #e9ede8; font-weight: 500; }
+.ledger-policy { margin: 6px 0 14px; }
+.ledger-policy summary { cursor: pointer; font-size: 12px; color: var(--mint); line-height: 1.8; }
+.ledger-policy summary > span { color: #b2c2a3; margin-left: 10px; }
+.ledger-section { margin-top: 20px; }
+.ledger-section-title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+.ledger-section-title h4 { margin: 0; font-size: 13px; font-weight: 500; }
+.ledger-section-title > span { font-size: 10px; color: #b2c2a3; }
+.ledger-scroll { overflow-x: auto; max-width: 100%; border: 1px solid var(--border); border-radius: 4px; }
+.ledger-table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+.ledger-table th, .ledger-table td { padding: 11px 10px; text-align: left; border-bottom: 1px solid #35402e; }
+.ledger-table th { font-weight: 500; }
+.ledger-table thead th { font-size: 11px; color: #b2c2a3; background: #1b231d; }
+.ledger-table tbody tr:last-child > * { border-bottom: 0; }
+.ledger-table small { display: block; font-size: 10px; color: #aab8a0; margin-top: 4px; }
+.ledger-duplicate { background: #412920; }
+.ledger-badge { display: inline-block; padding: 3px 6px; border: 1px solid #4d5c44; border-radius: 4px; color: #d5e4c9; font-size: 11px; line-height: 1.4; }
+.ledger-badge.is-duplicate { color: #ffc3a8; border-color: #a16852; }
+.ledger-badge.is-replay { color: var(--mint); border-color: #7d966b; background: #24351f; }
+.ledger-attempts { display: grid; gap: 8px; }
+.ledger-attempt { background: #19201b; padding: 11px 12px; border: 1px solid var(--border); border-radius: 4px; min-width: 0; }
+.ledger-attempt > div { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; font-size: 11px; }
+.ledger-attempt > div > span { display: inline-flex; align-items: center; gap: 4px; color: #b2c2a3; }
+.ledger-attempt p { font-size: 12px; margin: 8px 0; overflow-wrap: anywhere; }
+.ledger-footnote { margin: 18px 0 0; padding-top: 12px; border-top: 1px solid var(--border); font-size: 11px; }
+.ledger-empty { padding: 14px 0; font-size: 13px; line-height: 1.8; color: #b2c2a3; }
+.request-evidence { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 9px; }
+.request-evidence summary, .saved-response summary { cursor: pointer; color: var(--mint); font-size: 12px; line-height: 1.8; }
+.request-evidence summary > span { margin-left: 6px; color: #b2c2a3; }
+.request-path { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; list-style-position: inside; margin: 12px 0; }
+.request-path li { background: #243025; border: 1px solid #4a5842; padding: 8px; border-radius: 4px; font-size: 12px; }
+.request-messages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.request-messages h5 { font-size: 12px; font-weight: 500; color: #c4d6b1; margin: 5px 0 8px; }
+.request-messages > div { min-width: 0; }
+.request-evidence pre, .saved-response pre { font-size: 11px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: #101618; border: 1px solid var(--border); border-radius: 4px; max-width: 100%; }
+.saved-response { margin-block: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 4px; }
+.saved-response dl { font-size: 12px; margin: 8px 0; line-height: 1.8; }
+.saved-response dl > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.saved-response dt { color: #b2c2a3; }
+.saved-response dd { margin: 0; }
+@container telemetry (max-width: 610px) {
+  .request-messages { grid-template-columns: 1fr; }
+}
+.inspector-stats dd { text-align: right; }
+@container telemetry (max-width: 470px) {
+  .ledger-summary { grid-template-columns: 1fr; }
+  .ledger-summary > div { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; }
+  .ledger-summary dt { margin-bottom: 0; }
+}
 .resize-control select { display: block; width: 100%; margin-top: 8px; }
 .connections { margin: 22px 0; }
 .connections h3 { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 500; color: #c7d5b7; margin-bottom: 11px; }

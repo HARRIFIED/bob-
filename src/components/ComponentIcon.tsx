@@ -24,8 +24,6 @@ export function ComponentIcon({ kind, size = 22 }: { kind: ComponentKind; size?:
     </> : kind === 'users' ? <>
       <circle cx="21" cy="10" r="5" fill="#efb777" /><path d="M13 28v-7a8 8 0 0 1 16 0v7" fill="#d3955d" />
       <circle cx="11" cy="11" r="5.5" fill="#d3edab" /><path d="M2 28v-7a9 9 0 0 1 18 0v7" fill="#93bc85" />
-    </> : kind === 'idempotency' ? <>
-      <path d="m16 3 12 5v9c0 6-12 12-12 12S4 23 4 17V8z" fill="#31584d" stroke="#a9d4a2" strokeWidth="2" /><path d="m10 16 4 4 8-9" stroke="#d3edab" strokeWidth="3" />
     </> : <>
       <rect x="3" y="9" width="23" height="19" rx="3" fill="#625037" stroke="#efb777" strokeWidth="1.5" /><path d="m5 11 10 8 9-7" stroke="#efb777" strokeWidth="2" /><path d="M19 5h10m-4-4 4 4-4 4" stroke="#d3edab" strokeWidth="2.5" />
     </>}

@@ -9,6 +9,8 @@
 .adjustable-workspace .dock-content[hidden], #mission-panel-body[hidden] { display: none; }
 .adjustable-workspace > .observability { container-type: inline-size; container-name: telemetry; }
 .adjustable-workspace .dock-content { scrollbar-gutter: stable; }
+.adjustable-workspace .dock-header [role=tablist] { min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.adjustable-workspace .dock-header [role=tab] { flex-shrink: 0; }
 .adjustable-workspace .mission-panel > .sidebar-heading { gap: 8px; }
 .adjustable-workspace .mission-panel > .sidebar-heading > .mono { margin-left: auto; }
 .adjustable-workspace .sidebar-heading > button { flex-shrink: 0; }

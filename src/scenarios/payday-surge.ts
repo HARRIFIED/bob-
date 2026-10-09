@@ -2,6 +2,18 @@ import type { ScenarioDefinition } from '../simulation/types';
 
 export const paydaySurge: ScenarioDefinition = {
   id: 'payday-surge', title: 'Payday Surge', company: 'SwiftPay',
+  engine: 'capacity', number: '01', incidentId: 'INC–001',
+  presentation: {
+    subtitle: 'Your first shift. A tenfold traffic spike. A production system that needs your attention.',
+    supportQuote: 'My balance won’t load. I’ve tried three times.',
+    symptoms: 'Slow balance checks · Failed requests · Intermittent errors',
+    infrastructure: 'Load balancer → 2 API servers → PostgreSQL',
+    missionTitle: 'Keep payday running.', loadLabel: 'PEAK TRAFFIC', loadDescription: 'Payday peak · 10× baseline',
+    correctnessNote: 'Correctness model: PostgreSQL is authoritative; writes invalidate cached balances.',
+    learningTip: 'A request can only be as fast as the services it waits for. The Traces tab shows where the time goes.',
+    completionText: 'Payday is running. Your architecture meets every requirement.',
+    requestMethod: 'GET', requestPath: '/balance', initialTab: 'Metrics',
+  },
   description: 'It’s 08:00 on payday. Traffic is ten times normal. Customers are reporting slow balance checks, failed requests, and intermittent errors. You’re on call.',
   budget: 1500,
   trafficProfile: { normal: 1200, peak: 12000, readFraction: 0.9, writeWeight: 2, ramp: [0.1, 0.28, 0.5, 0.72, 0.9, 1] },
@@ -51,9 +63,3 @@ export const paydaySurge: ScenarioDefinition = {
     tradeoff: 'Caching adds infrastructure cost and a cache invalidation problem. This mission assumes writes update PostgreSQL and invalidate the corresponding cached balance. A real system must verify that policy under concurrency and failure.',
   },
 };
-export const missionPreviews = [
-  { number: '01', title: 'Payday Surge', company: 'SwiftPay', topic: 'Capacity · Caching · Observability', available: true },
-  { number: '02', title: 'Double Debit', company: 'SwiftPay', topic: 'Retries · Idempotency', available: false },
-  { number: '03', title: 'Missing Event', company: 'SwiftPay', topic: 'Queues · Transactional outbox', available: false },
-  { number: '04', title: 'Global Expansion', company: 'SwiftPay', topic: 'Regions · Replication', available: false },
-];
