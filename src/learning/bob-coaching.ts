@@ -23,6 +23,13 @@ interface CoachingContext {
 
 /** Feedback always follows the measured result, never a presumed successful edit. */
 export function getBobNote({ scenario, architecture, result, running, stale, phase, revision }: CoachingContext): BobNote {
+  if (scenario.id === 'sandbox') return {
+    mood: running ? 'working' : 'thinking', title: running ? 'Running your experiment.' : stale ? 'Let’s test that change.' : result ? 'The measurements are ready.' : 'Your board. Your experiment.',
+    quip: 'Every good experiment starts with a question.',
+    text: running ? 'Watching the configured workload. Wait for the completed run before drawing conclusions.' : stale ? 'The graph or workload changed. Previous results describe the previous experiment.' : result ? 'Compare latency, errors, cost, and—for transfers—the ledger. A completed run is evidence, not a mission victory.' : 'Add or drag components, wire your own paths, and choose a workload in Experiment settings. Preview components can be drawn and saved, but are not simulated.',
+    hint: 'Change one thing at a time. Use the same workload to compare designs. Moving nodes and renaming labels do not change performance.',
+    action: scenario.engine === 'transfers' ? 'Ledger' : 'Metrics', actionLabel: 'Inspect measurements',
+  };
   if (scenario.engine === 'transfers') return transferNote({ scenario, architecture, result, running, stale, phase, revision });
   if (running) {
     const worried = Object.values(result?.nodes ?? {}).some(node => node.health === 'critical' || node.health === 'failed');

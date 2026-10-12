@@ -1,3 +1,4 @@
+import { wireArchitecture } from './architecture-helpers';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -129,7 +130,9 @@ test('mission switching resets results while the infrastructure catalog stays co
   await page.getByRole('button', { name: 'Start a Mission', exact: true }).click();
   await page.getByRole('button', { name: 'Open Production Simulator' }).click();
   await page.getByRole('button', { name: 'Add API Server Medium', exact: true }).click({ clickCount: 2, delay: 100 });
+  await wireArchitecture(page);
   await page.getByRole('button', { name: 'Add Redis Cache', exact: true }).click();
+  await wireArchitecture(page);
   await run(page);
   await page.getByRole('button', { name: /Next Mission: Double Debit/ }).click();
   await expect(page.getByRole('heading', { name: 'Double Debit.', exact: true })).toBeVisible();
@@ -172,6 +175,7 @@ test('Redis and worker memory are meaningful experiments, and API settings persi
   await enter(page);
   const ledger = page.getByRole('tabpanel', { name: 'Ledger', exact: true });
   await page.getByRole('button', { name: 'Add Redis Cache', exact: true }).click();
+  await wireArchitecture(page);
   await run(page);
   await expect(page.getByLabel('Duplicate debits failed: 2', { exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Bob’s engineering notes' })).toContainText('These are writes');
@@ -186,6 +190,7 @@ test('Redis and worker memory are meaningful experiments, and API settings persi
   await expect(ledger.locator('.ledger-attempt').last()).toContainText('Worker restarted');
   await configureApi(page);
   await page.getByRole('button', { name: 'Add API Server Small', exact: true }).click();
+  await wireArchitecture(page);
   await page.getByRole('button', { name: 'Inspect API Server 03', exact: true }).click();
   await expect(inspector.getByLabel('On POST /transfers', { exact: true })).toHaveValue('postgres');
   await run(page);

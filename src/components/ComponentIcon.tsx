@@ -1,6 +1,9 @@
 import type { ComponentKind } from '../simulation/types';
 
 const logos: Partial<Record<ComponentKind, string>> = {
+  mysql: 'mysql-original.svg',
+  mongodb: 'mongodb-original.svg',
+  kubernetes: 'kubernetes-original.svg',
   redis: 'redis-original.svg',
   postgres: 'postgresql-original.svg',
   'read-replica': 'postgresql-original.svg',
@@ -13,7 +16,11 @@ export function ComponentIcon({ kind, size = 22 }: { kind: ComponentKind; size?:
   const logo = logos[kind];
   if (logo) return <span className={`technology-icon technology-${kind}`} style={{ width: size, height: size }} aria-hidden="true"><img src={`${import.meta.env.BASE_URL}icons/${logo}`} width={size} height={size} alt="" draggable={false} />{kind === 'read-replica' && <span className="replica-mark">2</span>}</span>;
   return <svg className={`technology-icon technology-${kind}`} width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false" strokeLinejoin="round" strokeLinecap="round">
-    {kind.startsWith('api') ? <>
+    {kind === 'cdc' ? <>
+      <ellipse cx="10" cy="7" rx="7" ry="4" fill="#74c8bc" /><path d="M3 7v17c0 5 14 5 14 0V7M3 15c0 5 14 5 14 0" stroke="#74c8bc" strokeWidth="2" /><path d="M20 12h9m-4-4 4 4-4 4M29 23h-9m4-4-4 4 4 4" stroke="#efb777" strokeWidth="2" />
+    </> : kind === 'worker' ? <>
+      <rect x="4" y="5" width="24" height="22" rx="4" fill="#34596c" stroke="#8ecddd" strokeWidth="1.5" /><path d="m13 10-5 6 5 6m6-12 5 6-5 6" stroke="#d3edab" strokeWidth="2" />
+    </> : kind.startsWith('api') ? <>
       <rect x="4" y="3" width="24" height="26" rx="4" fill="#2d5465" stroke="#8ecddd" strokeWidth="1.5" />
       <rect x="7" y="7" width="18" height="7" rx="2" fill="#162f3d" /><rect x="7" y="18" width="18" height="7" rx="2" fill="#162f3d" />
       <circle className="server-led" cx="11" cy="10.5" r="1.7" fill="#d3edab" /><circle className="server-led" cx="11" cy="21.5" r="1.7" fill="#d3edab" />

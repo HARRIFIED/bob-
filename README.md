@@ -31,7 +31,7 @@ Browser tests use installed Google Chrome via Playwright's `chrome` channel. No 
 - Entry experience, mission previews, and playable **Payday Surge** and **Double Debit** briefings.
 - React Flow architecture with selectable nodes, editable positions, request animations, and textual health states.
 - A shared component catalog across missions: add small/medium API servers and Redis, resize APIs, and remove learner-added components. Unsupported components are global previews.
-- Automatic connections when adding components, with manual connections through canvas handles or accessible inspector controls.
+- Components are added disconnected, by clicking or dragging from the palette. Wire them through canvas handles or accessible inspector controls. Adding and removing nodes never rearranges or reconnects the remaining graph.
 - Six-phase deterministic traffic or retry replays, a skip-animation control, and immediate results with reduced motion enabled.
 - Metrics, readable logs, illustrative request traces, and live cost accounting. Double Debit adds a transaction ledger, HTTP request/response evidence, saved transfer records, client retry controls, and API request-handling settings.
 - An original animated robot Bob with a hard hat, expressive faces, pointer-following eyes, and high-fives.
@@ -39,7 +39,7 @@ Browser tests use installed Google Chrome via Playwright's `chrome` channel. No 
 - Local Redis, PostgreSQL, RabbitMQ, and Apache Kafka logos, plus colorful vendor-neutral infrastructure icons.
 - Mobile panel switching, keyboard-friendly controls, accessible tab navigation, a native modal debrief, and no external assets or runtime API calls.
 
-The app is fully client-side after initial load. Reloading requires the app's assets to be served again; there is no service worker or persistent progress yet. Bob is an authored mentor, not an AI chatbot.
+The app is fully client-side after initial load. Reloading requires the app's assets to be served again; there is no service worker. Sandbox projects can be saved locally or exported; mission progress is not persisted. Bob is an authored mentor, not an AI chatbot.
 
 ## Learning with Bob
 
@@ -54,8 +54,8 @@ Bob is an editable SVG in `src/components/bob/BobAvatar.tsx`, with animation and
 1. Start Payday Surge and read the incident briefing.
 2. Run the starting system: 2 medium APIs, a load balancer, and PostgreSQL.
 3. Inspect the 97% database CPU, full connection pool, logs, and trace.
-4. Add two medium APIs. Run again: the database is still saturated.
-5. Add Redis, then run again. All five requirements pass at $1,340/month.
+4. Add two medium APIs. Connect the load balancer to each, then each API to PostgreSQL. Run again: the database is still saturated.
+5. Add Redis. Replace each API → PostgreSQL connection with API → Redis, and connect Redis → PostgreSQL. Run again. All five requirements pass at $1,340/month.
 6. Read the debrief, inspect the healthy system, replay, or select **Next Mission: Double Debit**.
 
 You can also add Redis first. Database pressure improves, but two API workers still cannot handle the peak. Other instance-size combinations can pass because success is evaluated from metrics rather than an exact graph.
@@ -70,7 +70,7 @@ On desktop, drag the dividers beside **Components** and **Mission**, or above th
 - Click **Expand** in the architecture toolbar to use the whole workspace for the graph. **Restore layout** or **Escape** restores panel sizes, collapsed states, and the selected telemetry tab. Selecting a node opens its inspector.
 - Keyboard users can Tab to each divider and use arrow keys to resize, Shift+arrows for larger steps, Enter to collapse/expand, Home to collapse, or End for maximum size.
 
-The graph refits after a panel resize, browser resize, expansion, or instance addition. Panel sizes are bounded to keep the architecture usable on smaller desktops. At 900px and below, Components, Architecture, and Mission use the touch-friendly panel tabs. Layout choices last for the current workspace visit and do not change simulation results.
+The graph refits after a panel resize, browser resize, or expansion. Adding a node places it in the current view without changing existing node positions; use **Fit architecture to view** to see the whole design. Dragging preserves the viewport and updates the stored position only on release. Panel sizes are bounded to keep the architecture usable on smaller desktops. At 900px and below, Components, Architecture, and Mission use the touch-friendly panel tabs. Layout choices last for the current workspace visit and do not change simulation results.
 
 ## Structure
 
@@ -178,8 +178,65 @@ The model assumes committed PostgreSQL records survive the scripted worker resta
 
 ## Scope and next steps
 
-Payday Surge and Double Debit are playable. Read replicas, queues, outbox, Missing Event, and Global Expansion remain clearly marked previews. The same supported components are available in every mission; no component is locked to a mission. Load balancing and PostgreSQL are pre-provisioned, and the editor has a 12-API-instance limit.
+Payday Surge and Double Debit are playable. Read replicas, queues, outbox, Missing Event, and Global Expansion remain clearly marked previews. The same supported components are available in every mission; no component is locked to a mission. Load balancing and PostgreSQL are pre-provisioned in missions. The editor allows 12 API instances and 60 total nodes.
 
 Mission selection resets architecture, retry policy, results, and comparisons when switching to a different mission. Reopening the current mission’s briefing preserves its working design; **Replay Mission** starts that mission fresh. Moving nodes and adjusting workspace panels do not invalidate measured results. Architecture and retry-policy changes do.
 
-Scenario definitions, graph editing, cost, telemetry, and UI remain separate. Future work can add **Missing Event** with a deterministic event-loss/outbox model, saved progress, and a run-comparison timeline.
+Scenario definitions, graph editing, cost, telemetry, and UI remain separate. Future work can add **Missing Event** with a deterministic event-loss/outbox model, a run-comparison timeline, and simulated behavior for the design-preview catalog.
+## Sandbox
+
+Choose **Sandbox Mode** from the landing page. Start from the balance-service or
+transfer-service template, or replace it with an empty board. All nodes can be
+removed in Sandbox. Drag from the palette or click to place an unconnected
+component; neither adding nor deleting chooses connections for you.
+Use the inspector to rename nodes, edit X/Y positions with a keyboard, connect
+or disconnect paths, resize API capacity, and configure retries and request handling.
+Undo/redo covers the last 50 diagram edits (including positions); Ctrl/Cmd+Z and
+Ctrl/Cmd+Shift+Z work while focus is in the board. Auto-layout is an explicit action.
+
+The current runnable models remain deliberately bounded:
+
+- Balance service: configure peak load from 1–100,000 req/s and the read/write mix.
+  The six-snapshot traffic ramp starts at 10% of peak.
+- Transfer service: choose background traffic and toggle lost responses and the
+  worker restart. The same authored three-transfer account sample is replayed;
+  it is not a general payment workload generator. Disabling lost responses removes
+  the two retries, including the restart before the final retry.
+- Disconnect an edge to test a broken path. Runs begin with fresh model state.
+- Optional model targets reuse the workload's existing objective thresholds;
+  the monthly budget is editable. With targets disabled there is no pass/fail goal.
+  Sandbox never opens a mission victory dialog.
+- Metrics, logs, traces, costs, the transfer ledger, and comparisons with the
+  previous completed run remain available. Graph and workload edits invalidate
+  the old results; position and label changes do not.
+
+**Save** stores one named project in this browser. **Load saved** replaces the
+workspace with that project. **Export JSON** keeps multiple projects or versions;
+**Import JSON** restores a validated version 1 export. These actions save settings,
+labels, positions, connections, and application policies, not telemetry or a
+running simulation. Invalid files leave the current workspace intact. Browser
+storage errors are shown; exported files can be retained independently. Nothing is
+uploaded. Switching to a mission replaces the working sandbox, so save or export
+before switching.
+
+Sandbox permits design-only connections and components, including **CDC**, a
+**background worker**, **transactional outbox**, **Kubernetes**, **MySQL**,
+**MongoDB**, queues, streams, and replicas. For example, draw a database/outbox
+with a CDC relay to Kafka, or a polling worker relay. These are **design previews**:
+CDC offsets, polling/delivery/recovery, orchestration, alternate database behavior,
+and event correctness are not simulated. Kubernetes represents orchestration,
+not request capacity. Previews are unpriced and estimates are marked partial.
+
+A diagram containing a preview, unsupported route, or multiple copies of the
+model's singleton resources can be edited and saved, but Run explains why it is
+unavailable. Supported simulations require clients → load balancer → APIs →
+PostgreSQL, optionally via Redis. Removing all clients or breaking that path
+produces observable request failures.
+
+Sandbox contracts and file validation live in `src/simulation/sandbox.ts`,
+settings and persistence UI in `src/components/simulator/SandboxControls.tsx`.
+Tests are in `src/simulation/sandbox.test.ts` and `tests/sandbox.spec.ts`.
+The editor retains React Flow and follows its
+[controlled node-state](https://reactflow.dev/api-reference/hooks/use-nodes-state)
+and [drag/drop coordinate](https://reactflow.dev/examples/interaction/drag-and-drop)
+interfaces; it does not embed Excalidraw or add a drawing framework.

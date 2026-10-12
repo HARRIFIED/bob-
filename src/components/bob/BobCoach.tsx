@@ -24,7 +24,7 @@ export function BobCoach({ onAction }: { onAction: (action: BobAction) => void }
   const noteKey = `${s.runCount}-${s.revision}-${s.running}`;
   const showHint = hintKey === noteKey;
   const settled = !s.stale && !s.running ? s.result : null;
-  const solved = settled?.missionState === 'stable';
+  const solved = !s.sandbox && settled?.missionState === 'stable';
   const stage = solved ? 3 : s.stale || (!s.result && s.revision > 0) ? 2 : s.runCount > 0 ? 1 : 0;
   const message = reaction.key === noteKey ? highFives[(reaction.count - 1) % highFives.length] : note.quip;
 

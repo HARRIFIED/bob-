@@ -624,3 +624,25 @@ select { background: #192019; border: 1px solid #4a5842; border-radius: 4px; pad
   .trace-note { font-size: 10px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }.react-flow__edge.animated path { stroke-dasharray: none !important; } }
+/* Sandbox settings remain readable within the resizable inspector. */
+.sandbox-controls { padding: 16px; }
+.sandbox-controls p { line-height: 1.6; color: var(--muted); }
+.sandbox-controls fieldset { border: 1px solid #3b4642; border-radius: 8px; margin: 18px 0; padding: 12px; min-width: 0; }
+.sandbox-controls legend { color: var(--mint); padding: 0 6px; }
+.sandbox-controls label { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.sandbox-controls input:not([type="checkbox"]), .sandbox-controls select, .resize-control input { width: 100%; min-width: 0; border: 1px solid #53625b; background: #192220; color: #e5ebe7; border-radius: 5px; padding: 8px; }
+.sandbox-controls input[type="file"] { font-size: 12px; }
+.sandbox-controls .sandbox-check { flex-direction: row; align-items: flex-start; line-height: 1.5; }
+.sandbox-check input { margin-top: 4px; accent-color: var(--mint); }
+.sandbox-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.sandbox-controls .button { padding: 8px; font-size: 12px; }
+.sandbox-controls ul { padding-left: 16px; line-height: 1.6; }
+.sandbox-controls [role="status"]:empty { display: none; }
+.workspace-context > div { min-width: 0; }
+.workspace-context > div > span:last-child { overflow-wrap: anywhere; }
+.inspector-position { display: flex; gap: 8px; margin: 12px 0; }
+.inspector-position label { flex: 1; min-width: 0; font-size: 12px; }
+.inspector-position input { width: 100%; margin-top: 6px; padding: 7px; color: #e5ebe7; background: #192220; border: 1px solid #53625b; border-radius: 4px; font-family: var(--mono); }
+.node-select > strong { overflow-wrap: anywhere; }
+.canvas-toolbar { flex-wrap: wrap; }
+.canvas-toolbar-actions { flex-wrap: wrap; }

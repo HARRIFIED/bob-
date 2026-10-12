@@ -1,3 +1,4 @@
+import { wireArchitecture } from './architecture-helpers';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -14,7 +15,9 @@ async function run(page: Page) {
 }
 async function addSolution(page: Page) {
   await page.getByRole('button', { name: 'Add API Server Medium', exact: true }).click({ clickCount: 2, delay: 100 });
+  await wireArchitecture(page);
   await page.getByRole('button', { name: 'Add Redis Cache', exact: true }).click();
+  await wireArchitecture(page);
 }
 
 test('complete incident diagnosis, wrong turn, recovery, debrief and replay', async ({ page }) => {
@@ -29,10 +32,12 @@ test('complete incident diagnosis, wrong turn, recovery, debrief and replay', as
   await page.getByRole('tab', { name: 'Traces', exact: true }).click();
   await expect(page.getByText('434 ms', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Add API Server Medium', exact: true }).click({ clickCount: 2, delay: 100 });
+  await wireArchitecture(page);
   await expect(page.getByText('PREVIOUS RUN · RERUN TO UPDATE')).toBeVisible();
   await run(page);
   await expect(page.getByText(/You added more compute, but PostgreSQL is still saturated/)).toBeVisible();
   await page.getByRole('button', { name: 'Add Redis Cache', exact: true }).click();
+  await wireArchitecture(page);
   await page.getByRole('tab', { name: 'Cost', exact: true }).click();
   await expect(page.getByRole('cell', { name: 'Redis Cache', exact: true })).toBeVisible();
   await run(page);
@@ -51,6 +56,7 @@ test('reduced motion runs instantly and over-budget performance cannot complete 
   await enter(page);
   await addSolution(page);
   await page.getByRole('button', { name: 'Add API Server Medium', exact: true }).click({ clickCount: 2, delay: 100 });
+  await wireArchitecture(page);
   await run(page);
   await expect(page.getByRole('dialog')).not.toBeVisible();
   await expect(page.getByText(/Performance looks good, but this design is over budget/)).toBeVisible();
@@ -63,6 +69,7 @@ test('keyboard controls add, resize, disconnect, reconnect, and remove component
   await enter(page);
   const add = page.getByRole('button', { name: 'Add API Server Medium', exact: true });
   await add.focus(); await page.keyboard.press('Enter');
+  await wireArchitecture(page);
   const node = page.getByRole('button', { name: 'Inspect API Server 03', exact: true });
   await node.focus(); await page.keyboard.press('Enter');
   await page.getByLabel('Instance size').selectOption('api-small');

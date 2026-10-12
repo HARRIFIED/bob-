@@ -15,14 +15,22 @@ export function ComponentInspector() {
   if (!node) return null;
   const def = definitions[node.kind];
   const telemetry = !store.stale ? store.result?.nodes[node.id] : undefined;
-  const options = store.architecture.nodes.filter(n => canConnect(store.architecture, node.id, n.id));
+  const options = store.architecture.nodes.filter(n => canConnect(store.architecture, node.id, n.id, !!store.sandbox));
   const outgoing = store.architecture.edges.filter(e => e.source === node.id);
   const targetId = options.some(n => n.id === target) ? target : options[0]?.id ?? '';
   const logical = node.kind === 'users';
   const transferClient = node.kind === 'users' && store.scenario.engine === 'transfers';
   return <div className="inspector">
-    <button className="text-link inspector-back" onClick={() => store.select(null)}><ArrowLeft size={14} /> Back to mission</button>
+    <button className="text-link inspector-back" onClick={() => store.select(null)}><ArrowLeft size={14} /> {store.sandbox ? 'Back to experiment' : 'Back to mission'}</button>
     <div className="inspector-title"><span className="inspector-icon"><ComponentIcon kind={node.kind} size={24} /></span><span><span className="eyebrow">{def.category}</span><h2>{node.label}</h2></span></div>
+    <label className="resize-control">Component label<input aria-label="Component label" maxLength={80} defaultValue={node.label} disabled={store.running} onBlur={event => { if (event.target.value.trim() !== node.label) store.rename(node.id, event.target.value); }} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} /></label>
+    <div className="inspector-position">
+      {(['x', 'y'] as const).map(axis => <label key={axis}>Position {axis.toUpperCase()}<input key={node.position[axis]} type="number" aria-label={`Position ${axis.toUpperCase()}`} defaultValue={Math.round(node.position[axis])} disabled={store.running} onBlur={event => {
+        const value = event.target.valueAsNumber;
+        if (Number.isFinite(value) && Math.abs(value) <= 100000 && value !== node.position[axis]) store.move(node.id, { ...node.position, [axis]: value });
+      }} /></label>)}
+    </div>
+    {!def.available && <p className="inline-notice">Design preview · behavior is not simulated. Cost and capacity are unverified.</p>}
     <HealthBadge health={telemetry?.health ?? 'ready'} />
     <p className="inspector-description">{transferClient ? 'Mobile clients retry a transfer when its response is lost. Inspect the ledger to distinguish a failed request from an already committed debit.' : def.description}</p>
     {node.kind === 'users' && <RetryControls />}
@@ -42,7 +50,7 @@ export function ComponentInspector() {
       {node.kind === 'postgres' && <div><dt>Connections</dt><dd>{telemetry?.connections ?? '—'} / 100</dd></div>}
       {node.kind === 'postgres' && telemetry?.detail && <div><dt>Ledger alert</dt><dd className="text-red">{telemetry.detail}</dd></div>}
       {node.kind === 'redis' && <div><dt>Cache hit rate</dt><dd>{telemetry?.cacheHitRate ?? '—'}%</dd></div>}
-      <div className="inspector-cost"><dt>Monthly estimate</dt><dd>{money(def.monthlyCost)}</dd></div>
+      <div className="inspector-cost"><dt>Monthly estimate</dt><dd>{def.available ? money(def.monthlyCost) : 'Unpriced preview'}</dd></div>
     </dl>
     {store.stale && <p className="inline-notice">Architecture changed. Run again for current telemetry.</p>}
     {isApi(node.kind) && <label className="resize-control">Instance size
@@ -62,6 +70,6 @@ export function ComponentInspector() {
         <div><select id="connection-target" value={targetId} onChange={event => setTarget(event.target.value)} disabled={store.running}>{options.map(n => <option value={n.id} key={n.id}>{n.label}</option>)}</select><button className="icon-button" aria-label="Add connection" disabled={store.running}><Plus size={17} /></button></div>
       </form>}
     </div>
-    {node.added ? <button className="button danger-button" disabled={store.running} onClick={() => store.remove(node.id)}><Trash2 size={14} /> Remove component</button> : <p className="protected-note">Starting infrastructure · resize or rewire to experiment.</p>}
+    {node.added || store.sandbox ? <button className="button danger-button" disabled={store.running} onClick={() => store.remove(node.id)}><Trash2 size={14} /> Remove component</button> : <p className="protected-note">Starting infrastructure · resize or rewire to experiment.</p>}
   </div>;
 }

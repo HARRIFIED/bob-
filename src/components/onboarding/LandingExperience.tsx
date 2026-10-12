@@ -4,13 +4,13 @@ import { useSimulator } from '../../store/simulator-store';
 import { BobMessage, ComponentIcon, EstimateNote, Logo } from '../shared';
 
 export function LandingExperience() {
-  const { selectMission } = useSimulator();
+  const { selectMission, startSandbox } = useSimulator();
   return <div className="landing-shell">
     <header className="site-header"><Logo /><span className="header-label"><span className="status-dot" /> SYSTEM DESIGN, HANDS ON</span><a href="#missions" className="text-link">Explore missions <ArrowUpRight size={15} /></a></header>
     <main id="main-content" className="landing-main">
       <section className="landing-hero">
         <div className="hero-copy"><div className="eyebrow"><Terminal size={15} /> YOUR SHIFT STARTS HERE</div><h1>Build it.<br />Break it.<br /><span>Understand it.</span></h1><p className="hero-description">Step into realistic production scenarios, inspect what is failing, redesign the architecture and see the consequences of your decisions.</p>
-          <div className="hero-actions"><button className="button primary" onClick={() => selectMission('payday-surge')}>Start a Mission <ArrowRight size={17} /></button><button className="button secondary" disabled>Sandbox Mode <span className="soon-inline">SOON</span></button></div>
+          <div className="hero-actions"><button className="button primary" onClick={() => selectMission('payday-surge')}>Start a Mission <ArrowRight size={17} /></button><button className="button secondary" onClick={startSandbox}>Sandbox Mode <ArrowRight size={17} /></button></div>
           <div className="hero-footnote"><Check size={14} /> Learn by doing <span>·</span> Runs in your browser <span>·</span> No cloud bill</div>
         </div>
         <div className="hero-console" aria-label="Preview of the Payday Surge incident">

@@ -15,3 +15,16 @@ Bob and the vendor-neutral infrastructure symbols are original SVG artwork in
 `src/components/bob/BobAvatar.tsx` and `src/components/ComponentIcon.tsx`.
 
 All assets are served locally. No image CDN or account is required at runtime.
+## Sandbox catalog additions
+
+MySQL, MongoDB, and Kubernetes are copied without modification from Devicon v2.17.0,
+under the same included MIT license:
+
+- https://github.com/devicons/devicon/blob/v2.17.0/icons/mysql/mysql-original.svg
+- https://github.com/devicons/devicon/blob/v2.17.0/icons/mongodb/mongodb-original.svg
+- https://github.com/devicons/devicon/blob/v2.17.0/icons/kubernetes/kubernetes-original.svg
+
+Each SVG was checked for a usable viewBox and absence of scripts, event handlers,
+foreign objects, and external references. Product marks identify design previews,
+not a claim of vendor endorsement. The CDC and background worker symbols are
+original vendor-neutral SVGs in ComponentIcon; CDC does not imply a particular connector.

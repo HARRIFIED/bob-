@@ -1,6 +1,7 @@
+import { addWiredComponent as addComponent } from '../simulation/test-fixtures';
 import { describe, expect, it } from 'vitest';
 import { paydaySurge as scenario } from '../scenarios/payday-surge';
-import { addComponent, configureRequestHandling } from '../simulation/architecture';
+import { configureRequestHandling } from '../simulation/architecture';
 import { simulate } from '../simulation/engine';
 import { compareRuns, getBobNote } from './bob-coaching';
 import { doubleDebit } from '../scenarios/double-debit';

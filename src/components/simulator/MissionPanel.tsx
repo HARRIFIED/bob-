@@ -4,10 +4,11 @@ import { monthlyCost } from '../../simulation/cost';
 import { objectiveTarget, objectiveValue } from '../../simulation/format';
 import { objectivePasses } from '../../simulation/formulas';
 import { EngineerCheckpoint } from '../bob/EngineerCheckpoint';
+import { SandboxControls } from './SandboxControls';
 import { ComponentInspector } from './ComponentInspector';
 
 export function MissionPanel({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const { scenario, result, stale, running, architecture, selectedId, runCount } = useSimulator();
+  const { scenario, result, stale, running, architecture, selectedId, runCount, sandbox } = useSimulator();
   const cost = monthlyCost(architecture);
   const valid = result && !stale && !running;
   const objectives = scenario.objectives.map(objective => {
@@ -18,15 +19,15 @@ export function MissionPanel({ collapsed, onToggle }: { collapsed: boolean; onTo
   return (
     <aside id="mission-panel" className={`mission-panel${collapsed ? ' mission-compact' : ''}`} aria-label="Mission and component details" tabIndex={collapsed ? -1 : 0}>
       <div className="sidebar-heading">
-        <h2><Flag size={14} />{selectedId ? 'Component details' : 'Mission objectives'}</h2>
+        <h2><Flag size={14} />{selectedId ? 'Component details' : sandbox ? 'Experiment settings' : 'Mission objectives'}</h2>
         <span className="mono">{passed}/{objectives.length}</span>
         <button className="icon-button desktop-layout-control" onClick={onToggle} aria-label={collapsed ? 'Expand Mission panel' : 'Collapse Mission panel'} aria-expanded={!collapsed} aria-controls="mission-panel-body" title={collapsed ? 'Expand Mission panel' : 'Collapse Mission panel'}>
           {collapsed ? <PanelRightOpen size={17} /> : <PanelRightClose size={17} />}
         </button>
       </div>
-      {collapsed && <span className="mission-rail-label" aria-hidden="true">{selectedId ? 'INSPECTOR' : 'MISSION'} · {passed}/{objectives.length}</span>}
+      {collapsed && <span className="mission-rail-label" aria-hidden="true">{selectedId ? 'INSPECTOR' : sandbox ? 'SANDBOX' : 'MISSION'} · {passed}/{objectives.length}</span>}
       <div id="mission-panel-body" hidden={collapsed}>
-        {selectedId ? <ComponentInspector key={selectedId} /> : <>
+        {selectedId ? <ComponentInspector key={selectedId} /> : sandbox ? <><SandboxControls /><ul className="objectives">{objectives.map(({ objective, actual, passed: pass }) => <li key={objective.id}><div>{objective.label}<small>{objectiveTarget(objective)}</small></div><strong>{actual === null ? '—' : objectiveValue(objective, actual)} {actual !== null && (pass ? '✓' : '!')}</strong></li>)}</ul></> : <>
           <div className="mission-panel-intro"><span className="eyebrow">MISSION {scenario.number}</span><h3>{scenario.presentation.missionTitle}</h3><p>Meet every requirement after the full {scenario.engine === 'transfers' ? 'retry sequence' : `${scenario.trafficProfile.peak.toLocaleString('en-US')} req/s ramp`}.</p></div>
           <ul className="objectives">{objectives.map(({ objective, actual, passed: pass }) => {
             const fail = actual !== null && !pass;

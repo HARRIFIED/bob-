@@ -1,3 +1,4 @@
+import { wireArchitecture } from './architecture-helpers';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -23,6 +24,7 @@ const height = async (locator: Locator) => Math.round((await locator.boundingBox
 
 test('all three panels resize with a pointer, stay bounded, and preserve telemetry', async ({ page }) => {
   await enter(page);
+  await wireArchitecture(page);
   await page.getByRole('button', { name: 'Run Simulation' }).click();
   await expect(page.getByLabel('p95 latency failed: 827ms')).toBeVisible();
   const palette = page.getByRole('complementary', { name: 'Component palette' });

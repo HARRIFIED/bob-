@@ -1,7 +1,8 @@
+import { addWiredComponent as addComponent } from './test-fixtures';
 import { describe, expect, it } from 'vitest';
 import { doubleDebit as scenario } from '../scenarios/double-debit';
 import { paydaySurge } from '../scenarios/payday-surge';
-import { addComponent, configureRequestHandling, removeComponent } from './architecture';
+import { configureRequestHandling, removeComponent } from './architecture';
 import { simulate } from './engine';
 import type { ArchitectureState, RetryPolicy } from './types';
 
@@ -193,7 +194,7 @@ describe('Double Debit ledger and retry model', () => {
     expect(run(expanded).missionState).toBe('stable');
     const removed = removeComponent(expanded, 'redis-1');
     expect(removed.requestHandling).toBe('postgres');
-    expect(run(removed).missionState).toBe('stable');
-    expect(run(configureRequestHandling(removed, 'always-create')).telemetry.duplicateDebits).toBe(2);
+    expect(run(removed).missionState).toBe('incident');
+    expect(run(removed).mentor.id).toBe('disconnected');
   });
 });

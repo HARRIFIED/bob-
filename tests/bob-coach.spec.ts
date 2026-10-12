@@ -1,3 +1,4 @@
+import { wireArchitecture } from './architecture-helpers';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -49,9 +50,11 @@ test('success, stale edits, consecutive comparisons, and budget checks keep hone
   await expect(bob.locator('.bob-body')).toHaveCSS('animation-name', 'none');
   await bob.getByRole('button', { name: 'Run the baseline' }).click();
   await page.getByRole('button', { name: 'Add Redis Cache', exact: true }).click();
+  await wireArchitecture(page);
   await expect(bob).toHaveAttribute('data-mood', 'thinking');
   await expect(bob.getByText(/Baseline captured/)).toHaveCount(0);
   await page.getByRole('button', { name: 'Add API Server Medium', exact: true }).click({ clickCount: 2, delay: 100 });
+  await wireArchitecture(page);
   await bob.getByRole('button', { name: 'Test this design' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button', { name: 'Inspect your system' }).click();
@@ -61,6 +64,7 @@ test('success, stale edits, consecutive comparisons, and budget checks keep hone
   await page.getByRole('button', { name: 'Inspect your system' }).click();
   await expect(bob.getByText(/Latency unchanged; errors unchanged/)).toBeVisible();
   await page.getByRole('button', { name: 'Add API Server Medium', exact: true }).click({ clickCount: 2, delay: 100 });
+  await wireArchitecture(page);
   await bob.getByRole('button', { name: 'Test this design' }).click();
   await expect(bob.getByRole('button', { name: 'Follow the money' })).toBeVisible();
   await expect(page.getByRole('dialog')).not.toBeVisible();
@@ -74,7 +78,7 @@ test('mobile coach and locally served technology icons work offline', async ({ p
   await expect(page.getByRole('button', { name: 'Add Apache Kafka', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Add RabbitMQ Queue', exact: true })).toBeDisabled();
   const icons = page.locator('.palette .technology-icon img');
-  await expect(icons).toHaveCount(5);
+  await expect(icons).toHaveCount(8);
   await expect.poll(() => icons.evaluateAll(images => images.every(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0))).toBe(true);
   await context.setOffline(true);
   const bob = page.getByRole('region', { name: 'Bob’s engineering notes' });

@@ -1,6 +1,7 @@
+import { addWiredComponent as addComponent } from './test-fixtures';
 import { describe, expect, it } from 'vitest';
 import { paydaySurge as scenario } from '../scenarios/payday-surge';
-import { addComponent, canConnect, connect, removeComponent } from './architecture';
+import { canConnect, connect, removeComponent } from './architecture';
 import { monthlyCost } from './cost';
 import { simulate } from './engine';
 import { objectivePasses } from './formulas';
@@ -122,12 +123,12 @@ describe('architecture editing', () => {
     expect(canConnect(a, 'lb', 'api-1')).toBe(false);
     expect(canConnect(a, 'missing', 'db')).toBe(false);
   });
-  it('preserves starting nodes and reconnects direct database paths when removing Redis', () => {
+  it('preserves starting nodes and leaves broken paths visible when removing Redis', () => {
     const a = addComponent(initial(), 'redis');
     expect(removeComponent(a, 'db')).toBe(a);
     const next = removeComponent(a, 'redis-1');
     expect(next.edges.some(e => e.source.startsWith('redis') || e.target.startsWith('redis'))).toBe(false);
-    expect(run(next).telemetry).toEqual(run(initial()).telemetry);
+    expect(run(next).telemetry.errorRate).toBe(100);
   });
   it('adds API instances before or after Redis with valid routing', () => {
     const a = addComponent(addComponent(addComponent(initial(), 'redis'), 'api-medium'), 'api-medium');

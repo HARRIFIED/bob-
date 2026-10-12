@@ -1,4 +1,4 @@
-export type ComponentKind = 'users' | 'load-balancer' | 'api-small' | 'api-medium' | 'postgres' | 'redis' | 'read-replica' | 'queue' | 'kafka' | 'outbox';
+export type ComponentKind = 'users' | 'load-balancer' | 'api-small' | 'api-medium' | 'postgres' | 'redis' | 'read-replica' | 'queue' | 'kafka' | 'outbox' | 'cdc' | 'worker' | 'kubernetes' | 'mysql' | 'mongodb';
 export type Health = 'healthy' | 'warning' | 'critical' | 'failed';
 export interface ComponentDefinition {
   id: ComponentKind; name: string; category: string; capacity: number; baseLatency: number;
