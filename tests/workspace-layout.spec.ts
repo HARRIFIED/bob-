@@ -19,6 +19,46 @@ async function drag(page: Page, handle: Locator, x: number, y: number) {
   await page.mouse.up();
 }
 
+test('scrolling pans the architecture both ways; Ctrl+scroll zooms', async ({ page }) => {
+  await enter(page);
+  const viewport = page.locator('.react-flow__viewport');
+  const read = async () => {
+    const match = /translate\(([-\d.]+)px, ([-\d.]+)px\) scale\(([-\d.]+)\)/.exec(await viewport.getAttribute('style') ?? '');
+    return { x: Number(match?.[1]), y: Number(match?.[2]), zoom: Number(match?.[3]) };
+  };
+  let previous = '';
+  await expect.poll(async () => {
+    const current = await viewport.getAttribute('style') ?? '';
+    const settled = current === previous;
+    previous = current;
+    return settled;
+  }, { intervals: [250] }).toBe(true);
+  const frame = (await page.locator('.flow-container').boundingBox())!;
+  await page.mouse.move(frame.x + frame.width / 2, frame.y + frame.height / 2);
+  const start = await read();
+
+  await page.mouse.wheel(0, 200);
+  await expect.poll(async () => (await read()).y).toBeLessThan(start.y);
+  const down = await read();
+  expect(down).toMatchObject({ x: start.x, zoom: start.zoom });
+
+  await page.mouse.wheel(200, 0);
+  await expect.poll(async () => (await read()).x).toBeLessThan(down.x);
+  const right = await read();
+  expect(right).toMatchObject({ y: down.y, zoom: start.zoom });
+
+  await page.keyboard.down('Shift');
+  await page.mouse.wheel(0, 200);
+  await page.keyboard.up('Shift');
+  await expect.poll(async () => (await read()).x).toBeLessThan(right.x);
+  expect((await read()).zoom).toBe(start.zoom);
+
+  await page.keyboard.down('Control');
+  await page.mouse.wheel(0, -200);
+  await page.keyboard.up('Control');
+  await expect.poll(async () => (await read()).zoom).toBeGreaterThan(start.zoom);
+});
+
 const width = async (locator: Locator) => Math.round((await locator.boundingBox())!.width);
 const height = async (locator: Locator) => Math.round((await locator.boundingBox())!.height);
 
@@ -125,7 +165,7 @@ test('expanded architecture fits a larger graph and restores panel sizes, tabs, 
   await expect(page.getByRole('tab', { name: 'Logs', exact: true })).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: 'Logs', exact: true }).click();
   await expect(page.getByText('Database connection timeout · pool exhausted')).toBeVisible();
-  await expect.poll(() => height(dock)).toBe(325);
+  await expect.poll(() => height(dock)).toBe(280);
 
   await page.getByRole('button', { name: 'Expand architecture', exact: true }).click();
   await page.getByRole('button', { name: 'Inspect API Server 06' }).click();

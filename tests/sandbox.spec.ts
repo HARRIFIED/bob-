@@ -24,8 +24,8 @@ test('sandbox workload, fault controls, saving, imports and preview limits are h
   await expect(page.locator('.ledger-verdict')).toContainText('3/3 transfers confirmed');
   await page.getByLabel('Project name').fill('Outbox ideas');
   await page.getByRole('button', { name: 'Add Change Data Capture', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Run Again', exact: true })).toBeDisabled();
-  await expect(page.locator('.sandbox-controls')).toContainText('cannot be simulated yet');
+  await expect(page.getByRole('button', { name: 'Run Again', exact: true })).toBeEnabled();
+  await expect(page.locator('.sandbox-controls')).toContainText('Change Data Capture is design-only');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Saved in this browser.', { exact: true })).toBeVisible();
   const downloadEvent = page.waitForEvent('download');
@@ -87,6 +87,57 @@ test('dragging preserves edges, viewport and measurements; add/drop never wire a
   await expect(page.locator('.react-flow__node[data-id="redis-1"]')).toHaveCount(1);
 });
 
+test('component settings and injected faults change the measured experiment', async ({ page }) => {
+  await enter(page);
+  await page.getByRole('button', { name: 'Add Redis Cache', exact: true }).click();
+  await page.getByRole('button', { name: 'Inspect Redis Cache', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByLabel('Cache memory').selectOption('1');
+  await expect(page.locator('.topbar-budget strong')).toContainText('$980');
+  await page.getByRole('button', { name: 'Back to experiment', exact: true }).click();
+  await page.getByRole('button', { name: 'Inspect API Server 01', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('radio', { name: 'Take offline' }).check();
+  await expect(page.locator('.react-flow__node[data-id="api-1"] .node-fault')).toHaveText('OFF');
+  await page.getByRole('button', { name: 'Run Simulation', exact: true }).click();
+  await page.getByRole('tab', { name: 'Logs', exact: true }).click();
+  await expect(page.getByText('Injected fault · API Server 01 is offline')).toBeVisible();
+  await page.getByRole('radio', { name: 'No fault' }).check();
+  await expect(page.locator('.react-flow__node[data-id="api-1"] .node-fault')).toHaveCount(0);
+  await expect(page.getByText('CHANGES PENDING', { exact: true })).toBeVisible();
+});
+
+test('presets, live mode, challenges, share links, and design notes make the sandbox a playground', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await enter(page);
+  await page.getByLabel('Workload preset').selectOption('feed');
+  await expect(page.getByLabel('Peak traffic (req/s)')).toHaveValue('30000');
+  await page.getByLabel('Live mode: re-measure after every change').check();
+  await expect(page.getByText('RUN 01 · COMPLETE', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Add Redis Cache', exact: true }).click();
+  await expect(page.getByText('RUN 02 · COMPLETE', { exact: true })).toBeVisible();
+  await expect(page.getByText('CHANGES PENDING', { exact: true })).toHaveCount(0);
+
+  await page.getByLabel('Design challenge').selectOption('cost-cutter');
+  await expect(page.locator('.sandbox-controls')).toContainText('Serve 12,000 balance requests per second');
+  await expect(page.getByLabel('Peak traffic (req/s)')).toBeDisabled();
+  await expect(page.getByRole('heading', { name: /Payday on a shoestring/ })).toBeVisible();
+
+  const notes = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Design notes', exact: true }).click();
+  expect((await notes).suggestedFilename()).toBe('untitled-experiment.md');
+
+  await page.getByRole('button', { name: 'Share link', exact: true }).click();
+  const link = await page.getByRole('textbox', { name: 'Share link' }).inputValue();
+  expect(link).toContain('#share=');
+  const shared = await context.newPage();
+  await shared.goto(link);
+  await expect(shared.getByRole('heading', { name: 'Experiment settings' })).toBeVisible();
+  await expect(shared.getByRole('button', { name: 'Inspect Redis Cache', exact: true })).toHaveCount(1);
+  await expect(shared.getByLabel('Design challenge')).toHaveValue('cost-cutter');
+  await expect.poll(() => shared.evaluate(() => window.location.hash)).toBe('');
+});
+
 test('empty board, new catalog and mobile settings remain usable offline', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -105,7 +156,8 @@ test('empty board, new catalog and mobile settings remain usable offline', async
   await page.getByRole('button', { name: 'Fit architecture to view' }).click();
   await expect(page.locator('.react-flow__node')).toHaveCount(5);
   await expect(page.locator('.react-flow__edge')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Run Simulation', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Run Simulation', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Run Again', exact: true })).toBeEnabled();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('sandbox-mobile.png'), fullPage: true });
 });

@@ -1,4 +1,5 @@
 import { ArrowUpRight, CircleDot } from 'lucide-react';
+import { nodeConfig, roleOf } from '../../data/component-definitions';
 import { useSimulator } from '../../store/simulator-store';
 import type { TelemetrySnapshot } from '../../simulation/types';
 
@@ -15,6 +16,9 @@ export function MetricsPanel() {
   const { result, history, running, architecture, scenario } = useSimulator();
   const t = result?.telemetry;
   const transfers = scenario.engine === 'transfers';
+  const hasReplica = architecture.nodes.some(n => n.kind === 'read-replica');
+  const hasQueue = architecture.nodes.some(n => roleOf(n) === 'queue');
+  const canBeStale = hasReplica || hasQueue || architecture.nodes.some(n => n.kind === 'redis' && nodeConfig(n).writePolicy === 'ttl-only');
   const cards: MetricCard[] = transfers ? [
     { key: 'duplicateDebits', label: 'DUPLICATE DEBITS', unit: 'debits', max: 2, bad: value => value > 0, footer: 'Correctness target: zero' },
     { key: 'completionRate', label: 'TRANSFERS CONFIRMED', unit: '%', max: 100, bad: value => value < 100, footer: 'Every intended transfer acknowledged' },
@@ -45,6 +49,9 @@ export function MetricsPanel() {
         <div><span className="secondary-label">DB connections</span><strong className={t && t.dbConnections >= 95 ? 'text-amber' : ''}>{t?.dbConnections ?? '—'} <small>/ 100</small></strong><span className="mini-track"><span style={{ width: `${t?.dbConnections ?? 0}%` }} /></span></div>
         <div><span className="secondary-label">Error rate <span className="text-muted">&lt; 1%</span></span><strong className={t && t.errorRate >= 1 ? 'text-red' : ''}>{t?.errorRate ?? '—'}<small>%</small></strong></div>
         <div><span className="secondary-label">Redis hit rate</span><strong>{architecture.nodes.some(n => n.kind === 'redis') ? t?.cacheHitRate ?? '—' : '—'}<small>{architecture.nodes.some(n => n.kind === 'redis') ? '%' : 'not provisioned'}</small></strong></div>
+        {hasReplica && <div><span className="secondary-label">Replica lag</span><strong className={t && t.replicaLag >= 1000 ? 'text-amber' : ''}>{t?.replicaLag ?? '—'}<small>ms</small></strong></div>}
+        {hasQueue && <div><span className="secondary-label">Queue backlog <span className="text-muted">1 min</span></span><strong className={t && t.queueBacklog > 0 ? 'text-amber' : ''}>{t?.queueBacklog.toLocaleString('en-US') ?? '—'}<small>msgs · {t?.asyncLag ?? '—'} s lag</small></strong></div>}
+        {canBeStale && <div><span className="secondary-label">Stale reads</span><strong className={t && t.staleReads > 0 ? 'text-red' : ''}>{t?.staleReads ?? '—'}<small>/s</small></strong></div>}
       </>}
     </div>
     <div className="telemetry-caption"><CircleDot size={11} aria-hidden="true" />

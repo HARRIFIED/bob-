@@ -1,13 +1,29 @@
 export type ComponentKind = 'users' | 'load-balancer' | 'api-small' | 'api-medium' | 'postgres' | 'redis' | 'read-replica' | 'queue' | 'kafka' | 'outbox' | 'cdc' | 'worker' | 'kubernetes' | 'mysql' | 'mongodb';
+/** How the flow engine treats a component. 'design' components are drawn and saved but pass traffic through unmodeled. */
+export type ComponentRole = 'source' | 'router' | 'compute' | 'cache' | 'database' | 'replica' | 'queue' | 'consumer' | 'design';
 export type Health = 'healthy' | 'warning' | 'critical' | 'failed';
 export interface ComponentDefinition {
-  id: ComponentKind; name: string; category: string; capacity: number; baseLatency: number;
+  id: ComponentKind; name: string; category: string; role: ComponentRole; capacity: number; baseLatency: number;
   vcpu: number; memory: number; monthlyCost: number; description: string;
   available: boolean; readCapacity?: number; writeCapacity?: number; connectionLimit?: number; cacheHitRate?: number;
+  maxQueueDepth?: number;
 }
+export type CacheWritePolicy = 'invalidate' | 'ttl-only';
+/** Learner-adjustable settings. Absent values use the component's defaults. */
+export interface NodeConfig {
+  memoryGb?: number;
+  ttlSeconds?: number;
+  writePolicy?: CacheWritePolicy;
+  partitions?: number;
+  readYourWrites?: boolean;
+}
+/** Injected failures for experiments: offline, +200 ms, or a flushed (cold) cache. */
+export type NodeFault = 'down' | 'slow' | 'cold';
 export interface ArchitectureNode {
   id: string; kind: ComponentKind; label: string; position: { x: number; y: number }; added: boolean;
   retryPolicy?: RetryPolicy;
+  config?: NodeConfig;
+  fault?: NodeFault;
 }
 export interface RetryPolicy { enabled: boolean; keyStrategy: 'same-key' | 'new-key' | 'none' }
 export type RequestHandling = 'always-create' | 'worker-memory' | 'postgres';
@@ -44,8 +60,19 @@ export interface TelemetrySnapshot {
   traffic: number; apiCpu: number; dbCpu: number; dbConnections: number; cacheHitRate: number;
   p95: number; errorRate: number; incorrectBalances: number; availability: number; cost: number;
   duplicateDebits: number; retryAttempts: number; replayedRequests: number; completionRate: number;
+  /** Balance reads per second that may miss the customer's own latest write. */
+  staleReads: number;
+  /** Messages still queued after one minute at this load. */
+  queueBacklog: number;
+  /** Seconds before a queued write is applied, at the end of that minute. */
+  asyncLag: number;
+  /** Largest read-replica replication lag, in milliseconds. */
+  replicaLag: number;
 }
-export interface NodeTelemetry { traffic: number; cpu: number; memory: number; health: Health; connections?: number; cacheHitRate?: number; detail?: string }
+export interface NodeTelemetry {
+  traffic: number; cpu: number; memory: number; health: Health; connections?: number; cacheHitRate?: number; detail?: string;
+  lagMs?: number; backlog?: number;
+}
 export interface IncidentEvent { time: string; level: 'INFO' | 'WARN' | 'ERROR'; message: string }
 export interface TraceSpan { name: string; duration: number; kind: 'compute' | 'data' | 'cache' | 'other' }
 export interface MissionObjective { id: keyof TelemetrySnapshot; label: string; target: number; comparison: 'lt' | 'lte' | 'eq' | 'gte'; unit: string }
@@ -61,8 +88,18 @@ export interface ScenarioDefinition {
   transfers?: TransferFixture;
   trafficProfile: { normal: number; peak: number; readFraction: number; writeWeight: number; ramp: number[] };
   budget: number; objectives: MissionObjective[]; scriptedEvents: { phase: string; message: string }[];
+  /** Optional cheaper target for a mission's efficiency star. */
+  stretchBudget?: number;
   mentorRules: Record<string, MentorMessage>;
-  model: { apiCacheRelief: number; baseP95: number; maxApiQueue: number; maxDbQueue: number; apiQueueFactor: number; dbQueueFactor: number };
+  model: {
+    /** Fraction of one request's API work that a cache hit skips. */
+    cacheHitRelief: number;
+    baseP95: number; maxApiQueue: number; maxDbQueue: number; apiQueueFactor: number; dbQueueFactor: number;
+    /** Size of the frequently read data. Cache memory below this lowers the hit rate. */
+    workingSetGb?: number;
+    /** Share of writes followed by the same customer's read about a second later. */
+    followUpReadShare?: number;
+  };
   explanations: { worked: string; tradeoff: string };
 }
 export interface SimulationInput { scenario: ScenarioDefinition; architecture: ArchitectureState; traffic?: number; phase?: number }
@@ -70,5 +107,7 @@ export interface SimulationResult {
   telemetry: TelemetrySnapshot; nodes: Record<string, NodeTelemetry>; logs: IncidentEvent[];
   trace: TraceSpan[]; objectives: (MissionObjective & { passed: boolean; actual: number })[];
   mentor: MentorMessage; missionState: 'stable' | 'incident'; disconnected: string[];
+  /** Honest notes about drawn connections or components the model ignores or simplifies. */
+  notes: string[];
   ledger?: TransactionLedger;
 }

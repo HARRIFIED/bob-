@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { paydaySurge } from '../scenarios/payday-surge';
-import { addComponent, connect, removeComponent } from './architecture';
+import { addComponent, configureNode, connect, removeComponent, setNodeFault } from './architecture';
 import { simulate } from './engine';
-import { defaultSandboxSettings, parseSandboxProject, sandboxRunBlocker, sandboxScenario } from './sandbox';
+import { analyzeGraph } from './flow';
+import { defaultSandboxSettings, parseSandboxProject, sandboxScenario } from './sandbox';
 import type { SandboxProject } from './sandbox';
 
 const initial = () => structuredClone(paydaySurge.initialArchitecture);
@@ -25,15 +26,20 @@ describe('manual diagram editing', () => {
     expect(removeComponent(a, 'db')).toBe(a);
     expect(removeComponent(a, 'db', true).nodes.some(n => n.id === 'db')).toBe(false);
   });
-  it('allows design previews and arbitrary links only as an explicitly non-runnable sandbox diagram', () => {
+  it('runs any free-form diagram and explains what the model does not simulate', () => {
     const a = initial();
     expect(addComponent(a, 'cdc')).toBe(a);
     const diagram = connect(addComponent(a, 'cdc', undefined, true), 'db', 'cdc-1', true);
     expect(diagram.edges.at(-1)).toMatchObject({ source: 'db', target: 'cdc-1' });
-    expect(sandboxRunBlocker(diagram)).toContain('Change Data Capture');
-    expect(sandboxRunBlocker(connect(a, 'db', 'users', true))).toContain('routes outside');
-    expect(sandboxRunBlocker(addComponent(a, 'postgres', undefined, true))).toContain('one client');
-    expect(sandboxRunBlocker(a)).toBeNull();
+    const result = simulate({ scenario: paydaySurge, architecture: diagram });
+    expect(result.telemetry.p95).toBe(simulate({ scenario: paydaySurge, architecture: a }).telemetry.p95);
+    expect(result.notes).toContain('Change Data Capture is design-only: traffic drawn through it passes unchanged, and it is unpriced.');
+    expect(result.notes.some(note => note.startsWith('PostgreSQL → Change Data Capture is drawn but not simulated'))).toBe(true);
+    expect(analyzeGraph(connect(a, 'db', 'users', true)).notes.some(note => note.includes('PostgreSQL → Customers'))).toBe(true);
+    const twoDatabases = addComponent(a, 'postgres', undefined, true);
+    expect(twoDatabases.nodes.filter(n => n.kind === 'postgres')).toHaveLength(2);
+    expect(Object.values(simulate({ scenario: paydaySurge, architecture: twoDatabases }).telemetry).every(Number.isFinite)).toBe(true);
+    expect(analyzeGraph(a).notes).toEqual([]);
   });
 });
 describe('sandbox experiments', () => {
@@ -64,14 +70,22 @@ describe('sandbox experiments', () => {
   });
 });
 describe('sandbox file validation', () => {
-  it('round-trips diagrams and settings while discarding imported results and unknown fields', () => {
+  it('round-trips diagrams, component settings, and faults while discarding imported results', () => {
     const p = project();
     p.architecture = addComponent(p.architecture, 'mysql', { x: 0, y: 200 }, true);
+    p.architecture = configureNode(addComponent(p.architecture, 'redis', undefined, true), 'redis-1', { memoryGb: 2, writePolicy: 'ttl-only' });
+    p.architecture = setNodeFault(p.architecture, 'api-1', 'down');
     const restored = parseSandboxProject(JSON.stringify({ ...p, result: { missionState: 'stable' } }));
     expect(restored.settings).toEqual(p.settings);
     expect(restored.architecture.nodes.map(n => n.position)).toEqual(p.architecture.nodes.map(n => n.position));
+    expect(restored.architecture.nodes.find(n => n.id === 'redis-1')?.config).toEqual({ memoryGb: 2, writePolicy: 'ttl-only' });
+    expect(restored.architecture.nodes.find(n => n.id === 'api-1')?.fault).toBe('down');
     expect(restored).not.toHaveProperty('result');
-    expect(sandboxRunBlocker(restored.architecture)).toContain('MySQL');
+  });
+  it('rejects unknown component settings and faults', () => {
+    const badMemory = project(); badMemory.architecture.nodes[0].config = { memoryGb: 3 };
+    const badFault = project(); (badFault.architecture.nodes[0] as { fault?: string }).fault = 'meteor';
+    for (const value of [badMemory, badFault]) expect(() => parseSandboxProject(JSON.stringify(value))).toThrow();
   });
   it('rejects malformed values, duplicate ids, dangling edges, unknown kinds and oversized inputs', () => {
     const cases: unknown[] = [null, {}, { ...project(), version: 2 }];

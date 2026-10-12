@@ -1,15 +1,24 @@
-import { definitions, isApi, singletonKinds } from '../data/component-definitions';
-import type { ArchitectureState, ComponentKind, RequestHandling } from './types';
+import { definitions, isApi, roleOf, singletonKinds } from '../data/component-definitions';
+import type { ArchitectureState, ComponentKind, ComponentRole, NodeConfig, NodeFault, RequestHandling } from './types';
+
+/** Guided connections in missions and labs. The sandbox (freeform) allows any link; the engine explains unused ones. */
+const guidedLinks: Partial<Record<ComponentRole, ComponentRole[]>> = {
+  source: ['router'],
+  router: ['compute'],
+  compute: ['cache', 'database', 'replica', 'queue'],
+  cache: ['database', 'replica'],
+  database: ['replica'],
+  queue: ['consumer'],
+  consumer: ['database', 'cache'],
+};
 
 export function canConnect(architecture: ArchitectureState, source: string, target: string, freeform = false) {
   const from = architecture.nodes.find(n => n.id === source);
   const to = architecture.nodes.find(n => n.id === target);
   if (!from || !to || source === target || architecture.edges.some(e => e.source === source && e.target === target)) return false;
   if (freeform) return true;
-  return (from.kind === 'users' && to.kind === 'load-balancer') ||
-    (from.kind === 'load-balancer' && isApi(to.kind)) ||
-    (isApi(from.kind) && (to.kind === 'redis' || to.kind === 'postgres')) ||
-    (from.kind === 'redis' && to.kind === 'postgres');
+  if (!definitions[from.kind].available || !definitions[to.kind].available) return false;
+  return guidedLinks[roleOf(from)]?.includes(roleOf(to)) ?? false;
 }
 export function connect(architecture: ArchitectureState, source: string, target: string, freeform = false): ArchitectureState {
   if (!canConnect(architecture, source, target, freeform)) return architecture;
@@ -17,8 +26,8 @@ export function connect(architecture: ArchitectureState, source: string, target:
 }
 export function arrange(architecture: ArchitectureState): ArchitectureState {
   const columns: ComponentKind[][] = [
-    ['users'], ['load-balancer'], ['api-small', 'api-medium'], ['redis'],
-    ['postgres', 'mysql', 'mongodb', 'read-replica'], ['outbox', 'cdc', 'worker'], ['queue', 'kafka', 'kubernetes'],
+    ['users'], ['load-balancer', 'kubernetes'], ['api-small', 'api-medium'], ['redis', 'queue', 'kafka'],
+    ['worker', 'outbox'], ['postgres', 'mysql', 'mongodb'], ['read-replica', 'cdc'],
   ];
   return { ...architecture, nodes: architecture.nodes.map(n => {
     const column = columns.findIndex(kinds => kinds.includes(n.kind));
@@ -47,4 +56,29 @@ export function removeComponent(architecture: ArchitectureState, id: string, fre
 
 export function configureRequestHandling(architecture: ArchitectureState, requestHandling: RequestHandling): ArchitectureState {
   return architecture.requestHandling === requestHandling ? architecture : { ...architecture, requestHandling };
+}
+
+/** Merge learner settings into one node. Unchanged settings return the same state, so no edit is recorded. */
+export function configureNode(architecture: ArchitectureState, id: string, config: NodeConfig): ArchitectureState {
+  const node = architecture.nodes.find(n => n.id === id);
+  if (!node) return architecture;
+  const next = { ...node.config, ...config };
+  if (JSON.stringify(next) === JSON.stringify(node.config ?? {})) return architecture;
+  return { ...architecture, nodes: architecture.nodes.map(n => n.id === id ? { ...n, config: next } : n) };
+}
+
+/** Inject or clear an experiment fault. A cold start only applies to caches. */
+export function setNodeFault(architecture: ArchitectureState, id: string, fault: NodeFault | null): ArchitectureState {
+  const node = architecture.nodes.find(n => n.id === id);
+  if (!node || (fault === 'cold' && roleOf(node) !== 'cache') || (node.fault ?? null) === fault) return architecture;
+  return {
+    ...architecture,
+    nodes: architecture.nodes.map(n => {
+      if (n.id !== id) return n;
+      const next = { ...n };
+      delete next.fault;
+      if (fault) next.fault = fault;
+      return next;
+    }),
+  };
 }

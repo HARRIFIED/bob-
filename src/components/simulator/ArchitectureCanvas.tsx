@@ -1,8 +1,8 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Background, BackgroundVariant, Controls, Handle, Position, ReactFlow, useNodesState, useReactFlow, useStore } from '@xyflow/react';
+import { Background, BackgroundVariant, Controls, Handle, PanOnScrollMode, Position, ReactFlow, useNodesState, useReactFlow, useStore } from '@xyflow/react';
 import type { Node, NodeProps } from '@xyflow/react';
-import { GitBranch, Maximize2, Minimize2, MousePointer2, Redo2, Scan, Undo2 } from 'lucide-react';
-import { definitions, isComponentKind } from '../../data/component-definitions';
+import { GitBranch, Maximize2, Minimize2, MousePointer2, Redo2, Scan, Undo2, Zap } from 'lucide-react';
+import { definitions, isApi, isComponentKind, nodeConfig } from '../../data/component-definitions';
 import { canConnect } from '../../simulation/architecture';
 import type { ArchitectureNode, NodeTelemetry } from '../../simulation/types';
 import { useSimulator } from '../../store/simulator-store';
@@ -13,21 +13,34 @@ type FlowNode = Node<{
   component: ArchitectureNode; telemetry?: NodeTelemetry; selected: boolean; stale: boolean;
   baseTraffic: number; transfers: boolean; freeform: boolean; inspect: (id: string) => void;
 }, 'component'>;
+function nodeSubtitle(component: ArchitectureNode, transfers: boolean) {
+  const def = definitions[component.kind];
+  const config = nodeConfig(component);
+  if (!def.available) return 'Design preview · not simulated';
+  if (isApi(component.kind)) return `${def.vcpu} vCPU · ${def.memory} GB · ${def.capacity.toLocaleString('en-US')} req/s`;
+  switch (def.role) {
+    case 'source': return transfers ? 'Transfer retries · lost responses' : 'Balance checks & transfers';
+    case 'router': return 'Capacity-weighted routing';
+    case 'database': return 'Primary · source of truth';
+    case 'replica': return config.readYourWrites ? 'Async copy · read-your-writes' : 'Async copy · serves reads';
+    case 'cache': return config.writePolicy === 'ttl-only' ? `${config.memoryGb} GB · TTL-only expiry` : config.memoryGb === 4 && config.ttlSeconds === 300 ? 'Read cache · write invalidation' : `${config.memoryGb} GB · invalidate on write`;
+    case 'queue': return component.kind === 'kafka' ? `${config.partitions} partitions · consumer group` : 'Work queue · competing consumers';
+    case 'consumer': return `Applies queued writes · ${def.capacity.toLocaleString('en-US')}/s`;
+    default: return def.description;
+  }
+}
 const ComponentNode = memo(function ComponentNode({ data }: NodeProps<FlowNode>) {
   const { component, telemetry, selected, stale, baseTraffic, transfers, freeform, inspect } = data;
   const def = definitions[component.kind];
   const health = stale || !def.available ? 'ready' : telemetry?.health ?? 'ready';
-  const subtitle = !def.available ? 'Design preview · not simulated' : component.kind.startsWith('api') ?
-    `${def.vcpu} vCPU · ${def.memory} GB · ${def.capacity.toLocaleString('en-US')} req/s` :
-    component.kind === 'postgres' ? 'Primary · source of truth' :
-    component.kind === 'redis' ? 'Read cache · write invalidation' :
-    component.kind === 'users' ? transfers ? 'Transfer retries · lost responses' : 'Balance checks & transfers' : 'Capacity-weighted routing';
-  return <div className={`architecture-node ${health} ${selected ? 'is-selected' : ''}`}>
-    {(freeform || component.kind !== 'users') && <Handle type="target" position={Position.Left} />}
+  const subtitle = nodeSubtitle(component, transfers);
+  return <div className={`architecture-node ${health} ${selected ? 'is-selected' : ''}${component.fault ? ' has-fault' : ''}`}>
+    {(freeform || def.role !== 'source') && <Handle type="target" position={Position.Left} />}
     <button className="node-select" onClick={event => { if (event.detail === 0) inspect(component.id); }} aria-label={`Inspect ${component.label}`}>
       <div className="node-top">
         <span className={`node-icon ${component.kind}`}><ComponentIcon kind={component.kind} size={19} /></span>
         <span className="node-kind">{component.kind === 'users' ? 'TRAFFIC SOURCE' : def.category}</span>
+        {component.fault && <span className="node-fault" title="Injected fault"><Zap size={11} aria-hidden="true" />{component.fault === 'down' ? 'OFF' : component.fault === 'slow' ? 'SLOW' : 'COLD'}</span>}
         {component.added && <span className="node-added" title="Added by you">+</span>}
       </div>
       <strong>{component.label}</strong>
@@ -37,7 +50,7 @@ const ComponentNode = memo(function ComponentNode({ data }: NodeProps<FlowNode>)
           <><HealthBadge health={health} /><span className="mono">{!def.available ? 'PREVIEW' : telemetry && !stale ? telemetry.detail ?? `${telemetry.cpu}% CPU` : '—'}</span></>}
       </div>
     </button>
-    {(freeform || component.kind !== 'postgres') && <Handle type="source" position={Position.Right} />}
+    {(freeform || def.role !== 'replica') && <Handle type="source" position={Position.Right} />}
   </div>;
 });
 const nodeTypes = { component: ComponentNode };
@@ -67,11 +80,13 @@ export function ArchitectureCanvas({ expanded, onToggleExpanded, onInspect }: Ar
   const freeform = !!sandbox;
 
   // React Flow owns transient dragging and measured dimensions. Commit a move only on release.
+  // Selection follows the store so the canvas and inspector never disagree (e.g. after undo).
   useEffect(() => {
     setNodes(previous => architecture.nodes.map(component => {
       const existing = previous.find(n => n.id === component.id);
       return {
         ...existing, id: component.id, type: 'component', position: component.position,
+        selected: selectedId === component.id,
         data: { component, telemetry: result?.nodes[component.id], selected: selectedId === component.id,
           stale, baseTraffic: peak, transfers, freeform, inspect },
         draggable: !running,
@@ -113,13 +128,15 @@ export function ArchitectureCanvas({ expanded, onToggleExpanded, onInspect }: Ar
         onConnect={connection => store.connect(connection.source, connection.target)}
         isValidConnection={connection => canConnect(architecture, connection.source, connection.target, freeform)}
         nodesConnectable={!running} nodesFocusable={false} edgesFocusable={false} deleteKeyCode={null}
+        // Scrolling pans in any direction (Shift+wheel moves sideways); Ctrl/⌘+scroll or a pinch zooms.
+        panOnScroll panOnScrollMode={PanOnScrollMode.Free} panOnScrollSpeed={0.8}
         autoPanOnNodeDrag={false} nodeDragThreshold={4} fitView minZoom={0.1} maxZoom={2} colorMode="dark" attributionPosition="bottom-right">
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#343c38" />
         <Controls showInteractive={false} showFitView={false} />
         <ViewControls fitRevision={fitRevision} />
       </ReactFlow>
       <div className="canvas-region"><span className="status-dot" />{sandbox ? 'YOUR DESIGN' : 'SWIFTPAY CLOUD'} <span>/ local simulation</span></div>
-      <div className="canvas-hint"><MousePointer2 size={12} /><span>Drag to move · Scroll to zoom · Connect handles · Fit to see every component</span></div>
+      <div className="canvas-hint"><MousePointer2 size={12} /><span>Scroll to pan · Shift+scroll sideways · Ctrl/⌘+scroll or pinch to zoom · Drag nodes to move</span></div>
     </div>
     <div className="canvas-legend">
       <span><i className="legend-dot neutral" /> Ready</span><span><i className="legend-dot green" /> ✓ Healthy</span>

@@ -1,8 +1,9 @@
-import { definitions, isComponentKind, singletonKinds } from '../data/component-definitions';
+import { isComponentKind, kafkaPartitionOptions, redisMemoryOptions, redisTtlOptions } from '../data/component-definitions';
+import { capacityMentorRules } from '../scenarios/capacity-mentor';
+import { challengeById } from '../scenarios/challenges';
 import { paydaySurge } from '../scenarios/payday-surge';
 import { doubleDebit } from '../scenarios/double-debit';
-import { canConnect } from './architecture';
-import type { ArchitectureState, ScenarioDefinition, ArchitectureNode } from './types';
+import type { ArchitectureNode, ArchitectureState, NodeConfig, NodeFault, ScenarioDefinition } from './types';
 
 export interface SandboxSettings {
   workload: 'capacity' | 'transfers';
@@ -12,6 +13,10 @@ export interface SandboxSettings {
   targets: boolean;
   lostResponses: boolean;
   restartWorker: boolean;
+  /** Re-measure automatically after every change. */
+  live: boolean;
+  /** Active design challenge; its workload and goals replace the free-form ones. */
+  challenge: string | null;
 }
 export interface SandboxProject {
   version: 1;
@@ -22,22 +27,29 @@ export interface SandboxProject {
 export const sandboxStorageKey = 'bob.sandbox.v1';
 export const defaultSandboxSettings: SandboxSettings = {
   workload: 'capacity', peak: 12000, readFraction: 0.9, budget: 1500,
-  targets: false, lostResponses: true, restartWorker: true,
+  targets: false, lostResponses: true, restartWorker: true, live: false, challenge: null,
 };
 
 export function sandboxScenario(settings: SandboxSettings): ScenarioDefinition {
-  const base = settings.workload === 'transfers' ? doubleDebit : paydaySurge;
+  const capacity = settings.workload === 'capacity';
+  const base = capacity ? paydaySurge : doubleDebit;
+  const challenge = capacity ? challengeById(settings.challenge) : undefined;
+  const peak = challenge?.peak ?? settings.peak;
+  const readFraction = challenge?.readFraction ?? settings.readFraction;
   return {
-    ...base, id: 'sandbox', title: 'Sandbox', company: 'Your workspace', incidentId: 'LOCAL LAB',
-    budget: settings.budget,
-    trafficProfile: { ...base.trafficProfile, normal: settings.peak * (settings.workload === 'capacity' ? 0.1 : 1), peak: settings.peak, readFraction: settings.readFraction },
-    objectives: settings.targets ? base.objectives.map(o => o.id === 'cost' ? { ...o, target: settings.budget } : o) : [],
+    ...base, id: 'sandbox', title: challenge?.title ?? 'Sandbox', company: 'Your workspace', incidentId: challenge ? 'CHALLENGE' : 'LOCAL LAB',
+    budget: challenge?.budget ?? settings.budget,
+    trafficProfile: { ...base.trafficProfile, normal: peak * (capacity ? 0.1 : 1), peak, readFraction },
+    objectives: challenge ? challenge.objectives : settings.targets ? base.objectives.map(o => o.id === 'cost' ? { ...o, target: settings.budget } : o) : [],
+    mentorRules: capacity ? capacityMentorRules : base.mentorRules,
     presentation: { ...base.presentation, missionTitle: 'Your experiment', loadLabel: 'TEST LOAD',
       loadDescription: 'A deterministic local experiment with your workload settings.',
-      correctnessNote: settings.workload === 'capacity' ? 'Balance model: writes invalidate cached reads; stale-read races are not simulated.' : 'Transfer model: atomic shared key lookup and a fixed three-transfer sample.',
+      correctnessNote: capacity
+        ? 'Flow model: requests follow your connections. Stale reads come from replica lag, TTL-only caches, or queued writes.'
+        : 'Transfer model: atomic shared key lookup and a fixed three-transfer sample.',
     },
     scriptedEvents: base.scriptedEvents.map((event, index) => ({
-      phase: event.phase, message: settings.workload === 'capacity' ? 'Applying the configured traffic ramp' : `Replaying transfer sample, phase ${index + 1}`,
+      phase: event.phase, message: capacity ? 'Applying the configured traffic ramp' : `Replaying transfer sample, phase ${index + 1}`,
     })),
     ...(base.transfers ? { transfers: {
       ...base.transfers,
@@ -48,23 +60,38 @@ export function sandboxScenario(settings: SandboxSettings): ScenarioDefinition {
   };
 }
 
-export function sandboxRunBlocker(architecture: ArchitectureState): string | null {
-  const previews = architecture.nodes.filter(n => !definitions[n.kind].available);
-  if (previews.length) return `Design preview: ${[...new Set(previews.map(n => definitions[n.kind].name))].join(', ')} cannot be simulated yet. Save this diagram, or remove previews to run the supported model. Preview costs are incomplete.`;
-  if (singletonKinds.some(kind => architecture.nodes.filter(n => n.kind === kind).length > 1)) {
-    return 'This model supports one client source, load balancer, PostgreSQL database, and Redis cache. Multiple copies can be drawn and saved, but cannot be simulated yet.';
-  }
-  const withoutEdges = { ...architecture, edges: [] };
-  if (architecture.edges.some(e => !canConnect(withoutEdges, e.source, e.target))) {
-    return 'This diagram includes routes outside the current model. Runnable paths are clients → load balancer → APIs → PostgreSQL, optionally through Redis. Other routes can be drawn and saved.';
-  }
-  return null;
-}
-
 const object = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const finite = (v: unknown, min: number, max: number): v is number => typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
 const string = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max;
+const oneOf = <T,>(v: unknown, options: readonly T[]): v is T => options.includes(v as T);
+const faults: NodeFault[] = ['down', 'slow', 'cold'];
 function invalid(): never { throw new Error('Invalid sandbox file. Use a version 1 Bob sandbox export with valid components, connections, and workload settings.'); }
+
+function parseConfig(value: unknown): NodeConfig {
+  if (!object(value)) invalid();
+  const config: NodeConfig = {};
+  if (value.memoryGb !== undefined) {
+    if (!oneOf(value.memoryGb, redisMemoryOptions.map(option => option.gb))) invalid();
+    config.memoryGb = value.memoryGb;
+  }
+  if (value.ttlSeconds !== undefined) {
+    if (!oneOf(value.ttlSeconds, redisTtlOptions.map(option => option.seconds))) invalid();
+    config.ttlSeconds = value.ttlSeconds;
+  }
+  if (value.writePolicy !== undefined) {
+    if (!oneOf(value.writePolicy, ['invalidate', 'ttl-only'] as const)) invalid();
+    config.writePolicy = value.writePolicy;
+  }
+  if (value.partitions !== undefined) {
+    if (!oneOf(value.partitions, kafkaPartitionOptions)) invalid();
+    config.partitions = value.partitions;
+  }
+  if (value.readYourWrites !== undefined) {
+    if (typeof value.readYourWrites !== 'boolean') invalid();
+    config.readYourWrites = value.readYourWrites;
+  }
+  return config;
+}
 
 /** Validate and reconstruct untrusted JSON; never restore telemetry or running state. */
 export function parseSandboxProject(source: string): SandboxProject {
@@ -75,8 +102,10 @@ export function parseSandboxProject(source: string): SandboxProject {
   if ((s.workload !== 'capacity' && s.workload !== 'transfers') || !finite(s.peak, 1, 100000) ||
       !finite(s.readFraction, 0, 1) || !finite(s.budget, 0, 1000000) || typeof s.targets !== 'boolean' ||
       typeof s.lostResponses !== 'boolean' || typeof s.restartWorker !== 'boolean') invalid();
+  if ((s.live !== undefined && typeof s.live !== 'boolean') || (s.challenge !== undefined && s.challenge !== null && !challengeById(String(s.challenge)))) invalid();
   const settings: SandboxSettings = { workload: s.workload, peak: s.peak, readFraction: s.readFraction, budget: s.budget,
-    targets: s.targets, lostResponses: s.lostResponses, restartWorker: s.restartWorker };
+    targets: s.targets, lostResponses: s.lostResponses, restartWorker: s.restartWorker,
+    live: s.live === true, challenge: challengeById(typeof s.challenge === 'string' ? s.challenge : null)?.id ?? null };
   const a = data.architecture;
   if (!Array.isArray(a.nodes) || a.nodes.length > 60 || !Array.isArray(a.edges) || a.edges.length > 3540) invalid();
   const nodes: ArchitectureNode[] = a.nodes.map((n: unknown) => {
@@ -87,6 +116,11 @@ export function parseSandboxProject(source: string): SandboxProject {
       const r = n.retryPolicy;
       if (!object(r) || typeof r.enabled !== 'boolean' || !['same-key', 'new-key', 'none'].includes(String(r.keyStrategy))) invalid();
       node.retryPolicy = { enabled: r.enabled, keyStrategy: r.keyStrategy === 'new-key' ? 'new-key' : r.keyStrategy === 'none' ? 'none' : 'same-key' };
+    }
+    if (n.config !== undefined) node.config = parseConfig(n.config);
+    if (n.fault !== undefined) {
+      if (!oneOf(n.fault, faults)) invalid();
+      node.fault = n.fault;
     }
     return node;
   });

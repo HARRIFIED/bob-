@@ -3,7 +3,7 @@ import { paydaySurge } from './payday-surge';
 
 export const doubleDebit: ScenarioDefinition = {
   id: 'double-debit', number: '02', incidentId: 'INC–002', engine: 'transfers',
-  title: 'Double Debit', company: 'SwiftPay', budget: 1500,
+  title: 'Double Debit', company: 'SwiftPay', budget: 1500, stretchBudget: 920,
   description: 'The transfer service looks healthy, but customers report being charged twice. PostgreSQL commits a transfer before a network timeout hides the response. The mobile client retries on another API worker. Did the first transfer fail, or did only its acknowledgement go missing?',
   presentation: {
     subtitle: 'One transfer. Two debits. Healthy dashboards can hide a correctness incident.',

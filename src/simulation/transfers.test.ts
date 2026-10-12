@@ -183,7 +183,8 @@ describe('Double Debit ledger and retry model', () => {
       const original = definition.initialArchitecture;
       const cached = addComponent(original, 'redis');
       expect(cached.nodes.some(node => node.kind === 'redis')).toBe(true);
-      expect(addComponent(original, 'queue')).toBe(original);
+      expect(addComponent(original, 'queue').nodes.some(node => node.kind === 'queue')).toBe(true);
+      expect(addComponent(original, 'cdc')).toBe(original);
     }
     const original = initial();
     const solution = configureRequestHandling(original, 'postgres');

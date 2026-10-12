@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 
-const defaults = { paletteWidth: 226, missionWidth: 284, dockHeight: 325 };
+const defaults = { paletteWidth: 226, missionWidth: 284, dockHeight: 280 };
 const limit = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 /** Layout preferences are independent of architecture and simulation results. */

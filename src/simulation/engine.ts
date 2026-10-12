@@ -1,7 +1,9 @@
 import { definitions, isApi } from '../data/component-definitions';
+import { cpuFor } from './component-model';
 import { monthlyCost } from './cost';
-import { clamp, healthForCpu, objectivePasses, round } from './formulas';
-import { generateLogs, generateTrace } from './telemetry';
+import { simulateFlow, percentileTerminal } from './flow';
+import { clamp, objectivePasses, round } from './formulas';
+import { brokenTrace, generateLogs } from './telemetry';
 import { simulateTransfers } from './transfers';
 import type { NodeTelemetry, SimulationInput, SimulationResult, TelemetrySnapshot } from './types';
 
@@ -9,56 +11,85 @@ import type { NodeTelemetry, SimulationInput, SimulationResult, TelemetrySnapsho
 export function simulate({ scenario, architecture, traffic = scenario.trafficProfile.peak, phase }: SimulationInput): SimulationResult {
   if (scenario.engine === 'transfers') return simulateTransfers({ scenario, architecture, traffic, phase });
   traffic = Math.max(0, Number.isFinite(traffic) ? traffic : 0);
-  const { nodes, edges } = architecture;
-  const linked = (from: string, to: string) => edges.some(e => e.source === from && e.target === to);
-  const sources = nodes.filter(n => n.kind === 'users');
-  const balancers = nodes.filter(n => n.kind === 'load-balancer' && sources.some(s => linked(s.id, n.id)));
-  const db = nodes.find(n => n.kind === 'postgres');
-  const caches = nodes.filter(n => n.kind === 'redis' && db && linked(n.id, db.id));
-  const apis = nodes.filter(n => isApi(n.kind));
-  const routed = apis.filter(n => balancers.some(b => linked(b.id, n.id)));
-  const cached = routed.filter(n => caches.some(c => linked(n.id, c.id)));
-  const active = routed.filter(n => (db && linked(n.id, db.id)) || cached.some(c => c.id === n.id));
-  const disconnected = apis.filter(n => !active.some(a => a.id === n.id)).map(n => n.label);
-  const capacity = active.reduce((sum, n) => sum + definitions[n.kind].capacity, 0);
-  const cachedCapacity = cached.reduce((sum, n) => sum + definitions[n.kind].capacity, 0);
-  const cacheCoverage = capacity ? cachedCapacity / capacity : 0;
-  const hitRate = (definitions.redis.cacheHitRate ?? 0) * cacheCoverage * Math.min(1, definitions.redis.capacity / Math.max(1, traffic));
-  const profile = scenario.trafficProfile;
-  const dbDemand = traffic * (profile.readFraction * (1 - hitRate) + (1 - profile.readFraction) * profile.writeWeight);
-  const dbPressure = db ? dbDemand / definitions[db.kind].capacity : 100;
-  const apiPressure = capacity ? traffic * (1 - scenario.model.apiCacheRelief * hitRate) / capacity : 100;
-  const apiCpu = round(clamp(18 + apiPressure * 78, 0, 98));
-  const dbCpu = round(dbPressure >= 1 ? clamp(90 + dbPressure * 3.2, 90, 97) : 18 + dbPressure * 67);
-  const apiQueue = round(Math.min(scenario.model.maxApiQueue, Math.max(0, apiPressure - 1) * scenario.model.apiQueueFactor));
-  const dbQueue = round(Math.min(scenario.model.maxDbQueue, Math.max(0, dbPressure - 1) * scenario.model.dbQueueFactor));
-  const broken = !active.length || disconnected.length > 0 || !db;
-  const brokenShare = !active.length ? 1 : disconnected.length / Math.max(1, apis.length);
-  const errorRate = round(clamp(0.04 + Math.max(0, apiPressure - 1) * 2 + Math.min(11, Math.max(0, dbPressure - 1) * 10) + (broken ? brokenShare * 100 : 0), 0, 100), 2);
+  const flow = simulateFlow({ architecture, traffic, scenario });
+  const entries = architecture.nodes.flatMap(node => {
+    const measured = flow.nodes.get(node.id);
+    return measured ? [{ node, flow: measured }] : [];
+  });
+  const apis = entries.filter(entry => isApi(entry.node.kind));
+  const serving = apis.filter(entry => !entry.flow.idle && entry.node.fault !== 'down');
+  const apiCapacity = serving.reduce((sum, entry) => sum + definitions[entry.node.kind].capacity, 0);
+  const apiPressure = apiCapacity ? serving.reduce((sum, entry) => sum + entry.flow.pressure * definitions[entry.node.kind].capacity, 0) / apiCapacity : 0;
+  const primaries = entries.filter(entry => entry.flow.role === 'database' && !entry.flow.idle && entry.node.fault !== 'down');
+  const busiest = primaries.reduce<(typeof primaries)[number] | undefined>((top, entry) => !top || entry.flow.pressure > top.flow.pressure ? entry : top, undefined);
+  const replicas = entries.filter(entry => entry.flow.role === 'replica' && !entry.flow.idle);
+  const queues = entries.filter(entry => entry.flow.role === 'queue' && !entry.flow.idle);
+  const hits = entries.filter(entry => entry.flow.role === 'cache').reduce((sum, entry) => sum + entry.flow.hits, 0);
+  const tail = percentileTerminal(flow.terminals, traffic);
+  const errorRate = traffic > 0 ? round(clamp(0.04 + (flow.overloadErrors + flow.failedRate) / traffic * 100, 0, 100), 2) : 0;
+  const staleReads = round(flow.staleReads, 1);
+  const disconnected = apis.filter(entry => entry.node.fault !== 'down' && (entry.flow.idle || entry.flow.failed > 0)).map(entry => entry.node.label);
+
   const t: TelemetrySnapshot = {
-    traffic, apiCpu, dbCpu: active.length ? dbCpu : 0,
-    dbConnections: active.length ? Math.min(100, Math.ceil(15 + dbPressure * 80)) : 0,
-    cacheHitRate: round(hitRate * 100), p95: broken ? 2000 : scenario.model.baseP95 + apiQueue + dbQueue,
-    errorRate, incorrectBalances: 0, availability: round(100 - errorRate, 2), cost: monthlyCost(architecture),
+    traffic,
+    apiCpu: serving.length ? cpuFor('compute', apiPressure) : 0,
+    dbCpu: busiest?.flow.cpu ?? 0,
+    dbConnections: busiest?.flow.connections ?? 0,
+    cacheHitRate: flow.clientReads > 0 ? round(hits / flow.clientReads * 100) : 0,
+    p95: tail?.latency ?? 0,
+    errorRate,
+    incorrectBalances: staleReads >= 0.05 ? Math.ceil(staleReads) : 0,
+    availability: round(100 - errorRate, 2),
+    cost: monthlyCost(architecture),
     duplicateDebits: 0, retryAttempts: 0, replayedRequests: 0, completionRate: 0,
+    staleReads,
+    queueBacklog: round(queues.reduce((sum, entry) => sum + entry.flow.backlog, 0)),
+    asyncLag: round(Math.max(0, ...queues.map(entry => entry.flow.lagMs)) / 1000, 1),
+    replicaLag: Math.max(0, ...replicas.map(entry => entry.flow.lagMs)),
   };
+
   const perNode: Record<string, NodeTelemetry> = {};
-  for (const node of nodes) {
-    let load = traffic, cpu = 0, health: NodeTelemetry['health'] = 'healthy';
-    if (isApi(node.kind)) {
-      const serving = active.some(n => n.id === node.id);
-      load = serving ? round(traffic * definitions[node.kind].capacity / Math.max(1, capacity)) : 0;
-      cpu = serving ? apiCpu : 0;
-      health = serving ? healthForCpu(cpu) : 'failed';
-    } else if (node.kind === 'postgres') { load = active.length ? round(traffic * (1 - profile.readFraction * hitRate)) : 0; cpu = t.dbCpu; health = healthForCpu(cpu); }
-    else if (node.kind === 'redis') { load = caches.some(c => c.id === node.id) ? round(traffic * profile.readFraction * cacheCoverage) : 0; cpu = load ? round(12 + load / definitions.redis.capacity * 65) : 0; health = load ? healthForCpu(cpu) : 'warning'; }
-    else if (node.kind === 'load-balancer') { cpu = round(8 + traffic / definitions[node.kind].capacity * 70); health = balancers.some(b => b.id === node.id) ? healthForCpu(cpu) : 'failed'; }
-    perNode[node.id] = { traffic: load, cpu, memory: round(cpu ? 28 + cpu * 0.45 : 0), health,
-      ...(node.kind === 'postgres' ? { connections: t.dbConnections } : {}), ...(node.kind === 'redis' ? { cacheHitRate: load ? t.cacheHitRate : 0 } : {}) };
+  for (const { node, flow: measured } of entries) {
+    const role = measured.role;
+    const detail = node.fault === 'down' ? 'Offline'
+      : role === 'design' ? 'Design-only'
+      : node.fault === 'cold' && !measured.idle ? `Cold · ${round(measured.hitRate * 100)}% hits`
+      : role === 'replica' && !measured.idle ? `Lag ${measured.lagMs} ms`
+      : role === 'queue' && !measured.idle ? measured.backlog > 0 ? `${Math.round(measured.backlog).toLocaleString('en-US')} queued` : `${Math.round(measured.drained).toLocaleString('en-US')} msg/s`
+      : role === 'consumer' && !measured.idle ? `${Math.round(measured.arriving).toLocaleString('en-US')} jobs/s`
+      : node.fault === 'slow' && !measured.idle ? `${measured.cpu}% CPU · +200 ms` : undefined;
+    perNode[node.id] = {
+      traffic: round(measured.arriving), cpu: measured.cpu, memory: round(measured.cpu ? 28 + measured.cpu * 0.45 : 0), health: measured.health,
+      ...(role === 'database' || role === 'replica' ? { connections: measured.connections } : {}),
+      ...(role === 'cache' ? { cacheHitRate: measured.idle ? 0 : round(measured.hitRate * 100) } : {}),
+      ...(role === 'replica' ? { lagMs: measured.lagMs } : {}),
+      ...(role === 'queue' ? { backlog: round(measured.backlog) } : {}),
+      ...(detail ? { detail } : {}),
+    };
   }
+
   const objectives = scenario.objectives.map(objective => ({ ...objective, actual: t[objective.id], passed: objectivePasses(objective, t[objective.id]) }));
-  const stable = objectives.every(o => o.passed);
-  const initialApiCount = scenario.initialArchitecture.nodes.filter(n => isApi(n.kind)).length;
-  const mentorKey = stable ? 'success' : broken ? 'disconnected' : dbPressure >= 1 ? (apis.length > initialApiCount ? 'computeOnly' : 'database') : apiPressure > 1 ? 'compute' : t.cost > scenario.budget ? 'budget' : 'compute';
-  return { telemetry: t, nodes: perNode, logs: generateLogs(t, disconnected), trace: generateTrace(apiQueue, dbQueue, hitRate > 0, broken), objectives, mentor: scenario.mentorRules[mentorKey], missionState: stable ? 'stable' : 'incident', disconnected };
+  const stable = objectives.every(objective => objective.passed);
+  const initialApiCount = scenario.initialArchitecture.nodes.filter(node => isApi(node.kind)).length;
+  const outage = flow.failedRate > 0 && architecture.nodes.some(node => node.fault === 'down');
+  const mentorKey = stable && objectives.length ? 'success'
+    : outage ? 'outage'
+    : flow.failedRate > 0 || disconnected.length ? 'disconnected'
+    : primaries.some(entry => entry.flow.pressure >= 1) ? apis.length > initialApiCount ? 'computeOnly' : 'database'
+    : replicas.some(entry => entry.flow.pressure >= 1) ? 'replica'
+    : apiPressure > 1 ? 'compute'
+    : t.incorrectBalances > 0 ? 'stale'
+    : t.queueBacklog > 0 ? 'backlog'
+    : t.cost > scenario.budget ? 'budget'
+    : objectives.length ? 'compute' : 'healthy';
+  return {
+    telemetry: t, nodes: perNode,
+    logs: generateLogs({ telemetry: t, disconnected, scenario, architecture, flow }),
+    trace: !tail ? [] : tail.failed ? brokenTrace : tail.spans,
+    objectives,
+    mentor: scenario.mentorRules[mentorKey] ?? scenario.mentorRules.compute ?? { id: mentorKey, text: '' },
+    missionState: stable ? 'stable' : 'incident',
+    disconnected,
+    notes: flow.notes,
+  };
 }

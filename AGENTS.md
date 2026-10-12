@@ -7,7 +7,7 @@ Apply these conventions to work in this project unless the user's task explicitl
 - This is a browser-based system-design learning simulator. Keep the experience friendly, interactive, and grounded in the consequences of the learner's decisions.
 - Use the existing React, TypeScript, Vite, Tailwind CSS, React Flow, and Lucide stack. Prefer existing dependencies and small reusable helpers over new frameworks or packages.
 - Preserve operation without network access after the initial assets load. Do not introduce runtime font/image CDNs, external APIs, or an AI service unless the task calls for them.
-- Payday Surge and Double Debit are playable missions. Future components and missions must remain clearly marked as previews until their behavior is implemented.
+- Payday Surge and Double Debit are playable missions; Component Labs and Sandbox design challenges are playable practice. Kubernetes, Transactional Outbox, and Change Data Capture are design-only previews (traffic passes through unmodeled). Future components and missions must remain clearly marked as previews until their behavior is implemented.
 
 ## Typography
 
@@ -57,7 +57,10 @@ Decorative icons next to text use `aria-hidden` or empty image `alt` text. Icon-
 | Component names, descriptions, capacity, availability, and prices | `src/data/component-definitions.ts` |
 | Graph editing and valid connections | `src/simulation/architecture.ts` |
 | Deterministic simulation, formulas, cost, logs, and traces | `src/simulation/` |
+| Graph routing (flow engine) and documented model assumptions | `src/simulation/flow.ts`, `src/simulation/component-model.ts` |
 | Mission objectives, traffic profiles, and teaching assumptions | `src/scenarios/` |
+| Component Labs and Sandbox challenges | `src/scenarios/labs.ts`, `src/scenarios/challenges.ts` |
+| Field Guide content, saved progress, badges, and design-note export | `src/learning/` |
 | Shared simulation state and run orchestration | `src/store/simulator-store.tsx` |
 | Mentor notes and comparisons | `src/learning/bob-coaching.ts` |
 | UI grouped by feature | `src/components/` |
@@ -69,7 +72,7 @@ Decorative icons next to text use `aria-hidden` or empty image `alt` text. Icon-
 - Charge for provisioned resources even if disconnected. Evaluate success using all mission objectives and the budget, not a hardcoded winning graph.
 - Explain educational assumptions honestly. Do not present simplified telemetry as measurements from deployed infrastructure.
 
-For a new simulated component, update its type, definition, icon, allowed connections, add/remove behavior, engine effects, cost/telemetry, relevant inspector controls, and coaching as needed. Cover its important behavior with tests. Adding a palette item alone does not make the component functional; keep `available: false` and a clear preview explanation until the model supports it.
+For a new simulated component, update its type and role, definition, icon, allowed connections, add/remove behavior, flow-engine effects, cost/telemetry, relevant inspector controls, coaching, and its Field Guide entry as needed. Prove every lab or challenge is unsolved at the start and solvable by measurement, not by one fixed graph. Cover its important behavior with tests. Adding a palette item alone does not make the component functional; keep `available: false` and a clear preview explanation until the model supports it.
 
 ## React, TypeScript, and styling practices
 
@@ -97,7 +100,7 @@ Use checks appropriate to the change; do not add tests that only repeat implemen
 | Documentation only | Review accuracy, referenced paths, and commands; no application build needed |
 
 - Add meaningful regression tests for new model behavior, state transitions, and fixed bugs. Reuse existing browser flows for small visual changes.
-- Relevant browser suites are `tests/learning-flow.spec.ts`, `tests/workspace-layout.spec.ts`, and `tests/bob-coach.spec.ts`. They cover accessibility, mobile use, offline behavior, learning progression, and workspace interactions.
+- Relevant browser suites are `tests/learning-flow.spec.ts`, `tests/double-debit.spec.ts`, `tests/labs.spec.ts`, `tests/sandbox.spec.ts`, `tests/workspace-layout.spec.ts`, and `tests/bob-coach.spec.ts`. They cover accessibility, mobile use, offline behavior, learning progression, and workspace interactions.
 - Browser tests use installed Google Chrome through Playwright's `chrome` channel. On Windows PowerShell, use `npm.cmd` when execution policy blocks `npm.ps1`; do not weaken system execution policy.
 - There is no lint script currently. Do not claim checks ran if they did not. If verification is blocked, state what remains unverified.
 - Finish with what changed, the checks actually run, and any material limitations. For downloaded assets, keep the attribution alongside the files. Do not introduce unrelated infrastructure or dependencies to complete a small task.

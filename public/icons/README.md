@@ -25,6 +25,7 @@ under the same included MIT license:
 - https://github.com/devicons/devicon/blob/v2.17.0/icons/kubernetes/kubernetes-original.svg
 
 Each SVG was checked for a usable viewBox and absence of scripts, event handlers,
-foreign objects, and external references. Product marks identify design previews,
-not a claim of vendor endorsement. The CDC and background worker symbols are
+foreign objects, and external references. Product marks identify the technology, not a
+claim of vendor endorsement. MySQL and MongoDB are simulated as generic primary databases;
+Kubernetes remains a design preview. The CDC and background worker symbols are
 original vendor-neutral SVGs in ComponentIcon; CDC does not imply a particular connector.

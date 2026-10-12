@@ -75,8 +75,9 @@ test('mobile coach and locally served technology icons work offline', async ({ p
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await enter(page);
   await page.getByRole('button', { name: 'Components', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Add Apache Kafka', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Add RabbitMQ Queue', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Add Apache Kafka', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Add Change Data Capture', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Add Kubernetes', exact: true })).toBeDisabled();
   const icons = page.locator('.palette .technology-icon img');
   await expect(icons).toHaveCount(8);
   await expect.poll(() => icons.evaluateAll(images => images.every(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0))).toBe(true);

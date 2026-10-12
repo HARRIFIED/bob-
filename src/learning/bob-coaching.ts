@@ -22,11 +22,31 @@ interface CoachingContext {
 }
 
 /** Feedback always follows the measured result, never a presumed successful edit. */
+const capacityNotes: Record<string, Omit<BobNote, 'text'>> = {
+  database: { mood: 'worried', title: 'We found a bottleneck. That’s progress!', quip: 'The database has one tiny straw. The traffic brought a swimming pool.', hint: 'Most requests are repeated balance reads. What could serve those reads before they reach PostgreSQL? Follow the database wait in Traces.', action: 'Traces', actionLabel: 'Find the slow span' },
+  computeOnly: { mood: 'thinking', title: 'More chefs. Still one tiny kitchen.', quip: 'The servers brought friends. The database did not.', hint: 'Adding API workers cannot remove repeated database reads. Try a Redis cache, then rerun and compare database CPU. Writes must still reach PostgreSQL.', action: 'Traces', actionLabel: 'Inspect the bottleneck' },
+  compute: { mood: 'thinking', title: 'The bottleneck moved. Follow it!', quip: 'Postgres can breathe. The API workers would like a turn.', hint: 'Open Metrics and compare API CPU with database CPU. Add or resize an API worker, rerun the traffic, and check the budget too.', action: 'Metrics', actionLabel: 'Compare the pressure' },
+  disconnected: { mood: 'worried', title: 'A request took a wrong turn.', quip: 'Even packets need directions. Mine come with doodles.', hint: 'Select a failed API node. In its inspector, connect it to PostgreSQL or to a Redis cache that connects to PostgreSQL. Check its load-balancer connection too.', action: 'Logs', actionLabel: 'Find the broken path' },
+  budget: { mood: 'thinking', title: 'Fast system. Slightly spicy invoice.', quip: 'My hard hat is not a money printer. I checked.', hint: 'Use Cost to find an API worker you could downsize or remove. Rerun after each change to make sure performance still meets the requirements.', action: 'Cost', actionLabel: 'Follow the money' },
+  success: { mood: 'celebrating', title: 'You did it, engineer. Payday saved!', quip: 'A high-five has been approved by the architecture committee.', hint: 'Explain the trade-off: caching lowers repeated read load, but costs money and needs a correct invalidation policy. More API capacity handles the remaining work.', action: 'debrief', actionLabel: 'See why it worked' },
+  stale: { mood: 'worried', title: 'Fast answer. Old balance.', quip: 'A speedy wrong answer is still a wrong answer.', hint: 'Logs name the source: replica lag, a TTL-only cache, or a queued write. Route a customer’s follow-up reads to the primary, invalidate cached values on write, or keep that write synchronous.', action: 'Logs', actionLabel: 'Find the stale source' },
+  backlog: { mood: 'thinking', title: 'The queue is holding the line.', quip: 'A queue is a waiting room, not a teleporter.', hint: 'Compare the publish rate with what the consumers can drain. Add workers, or partitions for Kafka, then rerun and watch the backlog and lag.', action: 'Metrics', actionLabel: 'Check the backlog' },
+  replica: { mood: 'worried', title: 'The replica is working overtime.', quip: 'Copying every write and answering every read. Busy little database.', hint: 'A replica replays every write from its primary as well as serving reads. Add another replica or cache repeated reads, then rerun.', action: 'Metrics', actionLabel: 'Inspect replica lag' },
+  outage: { mood: 'worried', title: 'Something is offline. Who noticed?', quip: 'Chaos engineering: breaking things on purpose, with a clipboard.', hint: 'Load balancers skip offline instances when a healthy one is available. Is there a second path for the failed component? Compare errors with and without the fault.', action: 'Logs', actionLabel: 'Trace the failure' },
+  healthy: { mood: 'curious', title: 'Nothing is struggling. Yet.', quip: 'A calm dashboard is an invitation.', hint: 'Find the next limit: raise the traffic, change the read mix, or inject a fault from a component’s inspector. Change one thing at a time.', action: 'Metrics', actionLabel: 'Inspect measurements' },
+};
+
 export function getBobNote({ scenario, architecture, result, running, stale, phase, revision }: CoachingContext): BobNote {
+  if (scenario.id === 'sandbox' && scenario.engine === 'capacity' && result && !running && !stale) {
+    const evidence = capacityNotes[result.mentor.id] ?? capacityNotes.healthy;
+    return result.mentor.id === 'success'
+      ? { ...evidence, mood: 'thinking', title: 'Every target passes at this load.', hint: 'An experiment is not a mission win. Push it further: more traffic, a smaller budget, or a fault.', action: 'Metrics', actionLabel: 'Inspect measurements', text: result.mentor.text }
+      : { ...evidence, text: result.mentor.text };
+  }
   if (scenario.id === 'sandbox') return {
     mood: running ? 'working' : 'thinking', title: running ? 'Running your experiment.' : stale ? 'Let’s test that change.' : result ? 'The measurements are ready.' : 'Your board. Your experiment.',
     quip: 'Every good experiment starts with a question.',
-    text: running ? 'Watching the configured workload. Wait for the completed run before drawing conclusions.' : stale ? 'The graph or workload changed. Previous results describe the previous experiment.' : result ? 'Compare latency, errors, cost, and—for transfers—the ledger. A completed run is evidence, not a mission victory.' : 'Add or drag components, wire your own paths, and choose a workload in Experiment settings. Preview components can be drawn and saved, but are not simulated.',
+    text: running ? 'Watching the configured workload. Wait for the completed run before drawing conclusions.' : stale ? 'The graph or workload changed. Previous results describe the previous experiment.' : result ? 'Compare latency, errors, cost, and—for transfers—the ledger. A completed run is evidence, not a mission victory.' : 'Add or drag components, wire your own paths, and choose a workload in Experiment settings. Every diagram runs; design-only previews pass traffic through unchanged.',
     hint: 'Change one thing at a time. Use the same workload to compare designs. Moving nodes and renaming labels do not change performance.',
     action: scenario.engine === 'transfers' ? 'Ledger' : 'Metrics', actionLabel: 'Inspect measurements',
   };
@@ -47,15 +67,10 @@ export function getBobNote({ scenario, architecture, result, running, stale, pha
   if (!result) return { mood: 'curious', title: 'Hey, engineer. Ready to break things?', quip: 'It’s a simulator. The only thing at risk is my coffee.',
     text: scenario.mentorRules.initial.text, hint: 'Start with the existing system. Then inspect the slowest span in Traces. An overloaded dependency can make every service before it look busy.', action: 'run', actionLabel: 'Run the baseline' };
 
-  const notes: Record<string, Omit<BobNote, 'text'>> = {
-    database: { mood: 'worried', title: 'We found a bottleneck. That’s progress!', quip: 'The database has one tiny straw. Payday brought a swimming pool.', hint: 'Most requests are repeated balance reads. What could serve those reads before they reach PostgreSQL? Follow the database wait in Traces.', action: 'Traces', actionLabel: 'Find the slow span' },
-    computeOnly: { mood: 'thinking', title: 'More chefs. Still one tiny kitchen.', quip: 'The servers brought friends. The database did not.', hint: 'Adding API workers cannot remove repeated database reads. Try a Redis cache, then rerun and compare database CPU. Writes must still reach PostgreSQL.', action: 'Traces', actionLabel: 'Inspect the bottleneck' },
-    compute: { mood: 'thinking', title: 'The bottleneck moved. Follow it!', quip: 'Postgres can breathe. The API workers would like a turn.', hint: 'Open Metrics and compare API CPU with database CPU. Add or resize an API worker, rerun the traffic, and check the budget too.', action: 'Metrics', actionLabel: 'Compare the pressure' },
-    disconnected: { mood: 'worried', title: 'A request took a wrong turn.', quip: 'Even packets need directions. Mine come with doodles.', hint: 'Select a failed API node. In its inspector, connect it to PostgreSQL or to a Redis cache that connects to PostgreSQL. Check its load-balancer connection too.', action: 'Logs', actionLabel: 'Find the broken path' },
-    budget: { mood: 'thinking', title: 'Fast system. Slightly spicy invoice.', quip: 'My hard hat is not a money printer. I checked.', hint: 'Use Cost to find an API worker you could downsize or remove. Rerun after each change to make sure performance still meets the requirements.', action: 'Cost', actionLabel: 'Follow the money' },
-    success: { mood: 'celebrating', title: 'You did it, engineer. Payday saved!', quip: 'A high-five has been approved by the architecture committee.', hint: 'Explain the trade-off: caching lowers repeated read load, but costs money and needs a correct invalidation policy. More API capacity handles the remaining work.', action: 'debrief', actionLabel: 'See why it worked' },
-  };
-  return { ...(notes[result.mentor.id] ?? notes.compute), text: result.mentor.text };
+  const note = { ...(capacityNotes[result.mentor.id] ?? capacityNotes.compute), text: result.mentor.text };
+  return scenario.id.startsWith('lab-') && result.mentor.id === 'success'
+    ? { ...note, title: 'Lab goal met. Nicely done!', hint: 'Read the debrief, then explain the trade-off in your own words. The next lab builds on this one.' }
+    : note;
 }
 
 export function compareRuns(current: SimulationResult, previous: SimulationResult | null): string {

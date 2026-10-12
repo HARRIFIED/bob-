@@ -2,7 +2,10 @@ import { definitions, isApi } from '../data/component-definitions';
 import { requestHandlingDefinition } from '../data/request-policies';
 import { monthlyCost } from './cost';
 import { clamp, healthForCpu, objectivePasses, round } from './formulas';
-import type { ArchitectureState, AttemptOutcome, IncidentEvent, LedgerPosting, NodeTelemetry, RetryPolicy, SimulationInput, SimulationResult, TelemetrySnapshot, TraceSpan, TransferRecord, TransferResponse } from './types';
+import type { ArchitectureState, AttemptOutcome, ComponentKind, IncidentEvent, LedgerPosting, NodeTelemetry, RetryPolicy, SimulationInput, SimulationResult, TelemetrySnapshot, TraceSpan, TransferRecord, TransferResponse } from './types';
+
+/** The transfer replay models this synchronous path only; other components add cost. */
+const transferModelKinds: ComponentKind[] = ['users', 'load-balancer', 'api-small', 'api-medium', 'redis', 'postgres'];
 
 export function retryPolicy(architecture: ArchitectureState): RetryPolicy {
   return architecture.nodes.find(node => node.kind === 'users')?.retryPolicy ?? { enabled: true, keyStrategy: 'same-key' };
@@ -109,9 +112,14 @@ export function simulateTransfers({ scenario, architecture, traffic = scenario.t
     incorrectBalances: balance === expected ? 0 : 1, availability: completionRate, cost: monthlyCost(architecture),
     duplicateDebits, retryAttempts: attempts.filter(attempt => attempt.attempt > 1).length,
     replayedRequests: attempts.filter(attempt => attempt.outcome === 'replayed').length, completionRate,
+    staleReads: 0, queueBacklog: 0, asyncLag: 0, replicaLag: 0,
   };
   const perNode: Record<string, NodeTelemetry> = {};
-  for (const node of nodes) {
+  const unmodeled = nodes.filter(node => !transferModelKinds.includes(node.kind));
+  const notes = [...new Set(unmodeled.map(node => definitions[node.kind].name))]
+    .map(name => `${name} is not part of this transfer replay. It adds cost but does not change the ledger.`);
+  for (const node of unmodeled) perNode[node.id] = { traffic: 0, cpu: 0, memory: 0, health: 'warning', detail: 'Not in this replay' };
+  for (const node of nodes.filter(item => transferModelKinds.includes(item.kind))) {
     const serving = isApi(node.kind) ? active.some(api => api.id === node.id)
       : node.kind === 'redis' ? caches.some(cache => cache.id === node.id) && active.some(api => linked(api.id, node.id))
       : node.kind === 'load-balancer' ? balancers.some(balancer => balancer.id === node.id) : active.length > 0;
@@ -140,7 +148,7 @@ export function simulateTransfers({ scenario, architecture, traffic = scenario.t
   ];
   const records = handler.value === 'postgres' ? [...sharedRecords.values()] : [...workerRecords.values()].flatMap(records => [...records.values()]);
   return {
-    telemetry: t, nodes: perNode, objectives, logs, trace, disconnected,
+    telemetry: t, nodes: perNode, objectives, logs, trace, disconnected, notes,
     mentor: scenario.mentorRules[mentorKey], missionState: stable ? 'stable' : 'incident',
     ledger: { account: fixture.account, currency: fixture.currency, openingBalanceMinor: fixture.openingBalanceMinor, expectedBalanceMinor: expected, actualBalanceMinor: balance, postings, attempts, plannedTransfers: fixture.intents.length, confirmedTransfers: confirmed.size, recordStore: handler.value, records },
   };

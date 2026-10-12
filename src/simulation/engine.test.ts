@@ -141,6 +141,6 @@ describe('architecture editing', () => {
     expect(monthlyCost(next)).toBe(1220);
     expect(next.edges.some(e => e.source === 'api-3' || e.target === 'api-3')).toBe(false);
     expect(addComponent(a, 'redis')).toBe(a);
-    expect(addComponent(a, 'queue')).toBe(a);
+    expect(addComponent(a, 'cdc')).toBe(a);
   });
 });
